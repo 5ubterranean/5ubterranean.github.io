@@ -1,6 +1,7 @@
 ---
 title: DevContainer_1 Writeup
 tags: [Docker, Vulnhub]
+image: /assets/images/devcontainer_1/devcontainer_1.png
 published: true
 ---
 
