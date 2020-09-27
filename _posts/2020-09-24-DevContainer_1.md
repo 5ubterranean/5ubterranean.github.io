@@ -5,8 +5,6 @@ image: /assets/images/devcontainer_1/devcontainer_1.png
 published: true
 ---
 
-# [](#header-1)Introduction
-
 DevContainer_1 is an easy machine created by [@0x04E1](https://twitter.com/0x04E1), on this machine we will find a page with a upload function where we will upload a PHP reverse shell, then we we will find us on a Docker container rather than the machine itself, after checking the files we will find a file that is being run every x seconds, we will add a reverse shell to it in order to get a shell on the machine, finaly we will see that we can execute a file without supplying a password, we will see that we have permissions over the directory where that file is located, so we can move it and create a reverse shell on the path of the original file and get root.
 
 # [](#header-1)Enumeration
