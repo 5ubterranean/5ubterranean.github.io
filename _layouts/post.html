@@ -3,11 +3,19 @@ layout: default
 ---
 
 <article>
+  {% if page.banner %}
+  <img src={{page.image}}/../banner.png>
+  {% endif %}
   <h2>{{ page.title }}</h2>
   <time datetime="{{ page.date | date_to_xmlschema }}" class="by-line">{{ page.date | date_to_string }}</time>
   {{ content }}
+  <div class="tags">
   <h3>Tags</h3>
   {% for tag in page.tags %}
   <a href="/tags.html#{{ tag | slugify }}"> {{ tag }}</a> &nbsp;
   {% endfor %}
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
 </article>

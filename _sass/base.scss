@@ -236,7 +236,7 @@ hr {
 
 a {
   color: #63c0f5;
-  text-shadow: 0 0 5px rgba(104, 182, 255, 0.5);
+  text-shadow: 0 0 3px rgba(104, 182, 255, 0.5);
 }
 
 a:active, a:focus {
@@ -244,6 +244,13 @@ a:active, a:focus {
   border: none;
   -moz-outline-style: none
 }
+
+.tags>a {
+  color: #63c0f5;
+  text-shadow: 0 0 2px rgba(104, 182, 255, 0.5);
+  font-size: 13px;
+}
+
 
 /* Clearfix */
 
