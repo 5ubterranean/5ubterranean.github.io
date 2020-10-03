@@ -72,7 +72,7 @@ Well now we have access to "forensics" folder, by its name we can guess that we 
 
 We could go to a windows machine and use mimikatz on it, but there is better way, [pypykatz](https://github.com/skelsec/pypykatz), once we have pypykatz installed we can run: `pypykatz lsa minidump lsass.DMP`, we don't get any password, but we find some NT hashes which we can use to access to the machine performing pass the hash, on this case we are interested on svc_backup user.
 
-![](/assets/images/blackfield/forensic.png)
+![](/assets/images/blackfield/pypykatz.png)
 
 With that we can use evil-winrm to get access to the machine and recover "user.txt".
 
