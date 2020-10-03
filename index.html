@@ -8,9 +8,11 @@ layout: default
           <h2><a href="{{ post.url | prepend: site.baseurl | replace: '//', '/' }}">{{ post.title }}</a></h2>
           <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date_to_string }}</time>
           <p>{{ post.content | strip_html | truncatewords:50 }}</p>
+          <div class=tags>
           {% for tag in post.tags %}
           <a href="/tags.html#{{ tag | slugify }}"> {{ tag }}</a> &nbsp;&nbsp;
           {% endfor %}
+          </div>
       </li>
     {% endfor %}
 </ul>
