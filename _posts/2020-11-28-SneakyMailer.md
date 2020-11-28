@@ -101,12 +101,12 @@ Well we got some credentials, we can use them to login into the imap server and 
 
 ![](/assets/images/sneakymailer/mailssent.png)
 
-Once we are connected we use "aa LOGIN paulbyrd ``^(#J@SkFv2[%KhIxKk(Ju`hqcHl<:Ht"`` to login as the user, then we list all the availabe folders with `aa LIST "" "*"`, after that we check if "Sent Items" has any message, `aa STATUS "INBOX.Sent Items" (MESSAGES)` (all the other folders are empty), finally we selecte it and read the first message, `aa SELECT "INBOX.Sent Items"`, `aa FETCH 1 (BODY[1])`. There wee see that the user is asking for the password of an account to be changed, if we are lucky the password hasn't been changed yet.
+Once we are connected we use "aa LOGIN paulbyrd ``^(#J@SkFv2[%KhIxKk(Ju`hqcHl<:Ht"`` to login as the user, then we list all the availabe folders with `aa LIST "" "*"`, after that we check if "Sent Items" has any message, `aa STATUS "INBOX.Sent Items" (MESSAGES)` (all the other folders are empty), finally we select it and read the first message, `aa SELECT "INBOX.Sent Items"`, `aa FETCH 1 (BODY[1])`. There wee see that the user is asking for the password of an account to be changed, if we are lucky the password hasn't been changed yet.
 We can use those creds to access to the ftp server, it only has "dev" folder and inside we can see the sourcecode of the webpage.
 
 ![](/assets/images/sneakymailer/ftp.png)
 
-After testing it we find out that we can upload files in "dev" folder (but we can't upload on any subdirectory), so we upload a revershe shell (as always I use [pentestmonkey's php reverse shell](https://github.com/pentestmonkey/php-reverse-shell)), we named it "rev.php", but if we access to "http://sneakycorp.htb/rev.php" we get a not found page, so maybe the ftp is a place where a kind of backup code is stored, or maybe it is located at a subdomain, so we use ![ffuf](https://github.com/ffuf/ffuf) to find subdomains, we should have run this on background while we were doing the previous steps, the command to do this is: `ffuf -u http://10.10.10.197 -H "Host: FUZZ.sneakycorp.htb" -w /usr/share/wordlists/dirb/common.txt --fs 185`
+After testing it we find out that we can upload files in "dev" folder (but we can't upload on any subdirectory), so we upload a revershe shell (as always I use [pentestmonkey's php reverse shell](https://github.com/pentestmonkey/php-reverse-shell)), we named it "rev.php", but if we access to "http://sneakycorp.htb/rev.php" we get a not found page, so maybe the ftp is a place where a kind of backup code is stored, or maybe it is located at a subdomain, so we use [ffuf](https://github.com/ffuf/ffuf) to find subdomains, we should have run this on background while we were doing the previous steps, the command to do this is: `ffuf -u http://10.10.10.197 -H "Host: FUZZ.sneakycorp.htb" -w /usr/share/wordlists/dirb/common.txt --fs 185`
 
 ![](/assets/images/sneakymailer/ffuf.png)
 
