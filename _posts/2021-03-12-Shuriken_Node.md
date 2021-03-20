@@ -18,7 +18,7 @@ We see that the machine is the 192.168.56.10, so we use nmap to find the open po
 
 ```
 nmap -p- -Pn -n -T 4 192.168.56.10
-nmap -sC -sV -p 80, -Pn -o scan.txt 192.168.56.10
+nmap -sC -sV -p 22,8080, -Pn -o scan.txt 192.168.56.10
 
 PORT     STATE SERVICE VERSION
 22/tcp   open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
