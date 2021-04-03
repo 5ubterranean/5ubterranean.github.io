@@ -6,7 +6,7 @@ published: true
 banner: true
 ---
 
-SneakyMailer is a Linux based machine that was active since July 11 of 2020 to --- , on this machine we will have to make a phising campain to get the credendials of a user, then using those credentials we will access to their smtp server and find other credentials on his sent messages, we will use those credentials to access to a ftp server where we will upload a reverse shell that we could access trough its webpage, after that we will find out that the machine has a pypiserver and that it install every package that is uploaded to it, so we will recover the password of the pypi server, generate a malicious pypi package and when we upload it we will get a shell as another user, this user can use pip3 as root without supplying a password, so we will abuse of this to get root on the machine.
+SneakyMailer is a Linux based machine that was active since July 11th of 2020 to November 28 , on this machine we will have to make a phising campain to get the credendials of a user, then using those credentials we will access to their smtp server and find other credentials on his sent messages, we will use those credentials to access to a ftp server where we will upload a reverse shell that we could access trough its webpage, after that we will find out that the machine has a pypiserver and that it install every package that is uploaded to it, so we will recover the password of the pypi server, generate a malicious pypi package and when we upload it we will get a shell as another user, this user can use pip3 as root without supplying a password, so we will abuse of this to get root on the machine.
 
 # [](#header-1)Enumeration
 
