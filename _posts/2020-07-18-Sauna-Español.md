@@ -1,6 +1,6 @@
 ---
 title: HTB Sauna Write-up (Español)
-tags: [HackTheBox, AS-REP Roasting, Active Direcotory, DCSync]
+tags: [HackTheBox, AS-REP Roasting, Active Directory, DCSync]
 image: /assets/images/Sauna/1__i__enw5__Rg5ZLLoPDehOMqw.png
 published: true
 banner: true
