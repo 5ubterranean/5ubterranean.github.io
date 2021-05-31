@@ -11,6 +11,22 @@ The laboratory used is the one that I'm showing on the next image, which consist
 
 ![](/assets/images/active-directory/domain.png)
 
+## List of attacks
+
+*   LLMNR Poisoning
+*   Uploading Files on Machines
+*   SMB Relay
+*   NTLM Relay to Ldap
+*   Overpass the Hash
+*   AS-REP Roastinng
+*   Kerberoasting
+*   Unconstrained Delegation
+*   Pass the Ticket
+*   Constrained Delegation
+*   Silver Ticket
+*   Golden Ticket
+*   Skeleton Key
+
 # LLMNR Poisoning
 
 When a machine tries to access to a resource that is not found among the available machines on the network a broadcast message is sent asking if anyone knows where that resource is, this is most likely happening when people is just arriving to work and not all machine have been powered on, so if there is any automatic task that tries to access a machine that is powered off it will send the broadcast message, or if any user trying to access to a shared resource makes a typo.
@@ -434,3 +450,5 @@ Reading this you might have notice that there is **a lot** missing on this blog,
 [The Cyber Mentor's ethical hacking course](https://www.udemy.com/course/practical-ethical-hacking/)
 
 [Pentester Academy Attacking and Defending Active Directory course](https://www.pentesteracademy.com/course?id=47)
+
+[S4vitar' Active Directory videos (spanish)](https://www.youtube.com/playlist?list=PLlb2ZjHtNkpg2Mc3mbkdYAhEoqnMGdl2Z)
