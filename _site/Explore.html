@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Explore Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Explore Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Explore Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Explorer is an Android based machine that was active since June 26th of 2021 to October 30th, on this machine we will exploit a vulnerability on an application running in the device to be able to list and download files inside of it, get a file with credentials and access through SSH, once we are inside we will see that adb port is listening, so we use SSH to port forward the port and using adb root the device." />
+<meta property="og:description" content="Explorer is an Android based machine that was active since June 26th of 2021 to October 30th, on this machine we will exploit a vulnerability on an application running in the device to be able to list and download files inside of it, get a file with credentials and access through SSH, once we are inside we will see that adb port is listening, so we use SSH to port forward the port and using adb root the device." />
+<link rel="canonical" href="http://localhost:8000/Explore" />
+<meta property="og:url" content="http://localhost:8000/Explore" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/explore/explore.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-10-30T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/explore/explore.png" />
+<meta property="twitter:title" content="Explore Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-10-30T00:00:00-05:00","datePublished":"2021-10-30T00:00:00-05:00","description":"Explorer is an Android based machine that was active since June 26th of 2021 to October 30th, on this machine we will exploit a vulnerability on an application running in the device to be able to list and download files inside of it, get a file with credentials and access through SSH, once we are inside we will see that adb port is listening, so we use SSH to port forward the port and using adb root the device.","headline":"Explore Writeup [HTB]","image":"http://localhost:8000/assets/images/explore/explore.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Explore"},"url":"http://localhost:8000/Explore"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/explore/explore.png/../banner.png>
+  
+  <h2>Explore Writeup [HTB]</h2>
+  <time datetime="2021-10-30T00:00:00-05:00" class="by-line">30 Oct 2021</time>
+  <p>Explorer is an Android based machine that was active since June 26th of 2021 to October 30th, on this machine we will exploit a vulnerability on an application running in the device to be able to list and download files inside of it, get a file with credentials and access through SSH, once we are inside we will see that adb port is listening, so we use SSH to port forward the port and using adb root the device.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.247
+nmap -sC -sV -p 42135,45141,59777,2222, -Pn -o scan.txt 10.10.10.247
+
+PORT      STATE SERVICE VERSION
+2222/tcp  open  ssh     (protocol 2.0)
+| fingerprint-strings: 
+|   NULL: 
+|_    SSH-2.0-SSH Server - Banana Studio
+| ssh-hostkey: 
+|_  2048 71:90:e3:a7:c9:5d:83:66:34:88:3d:eb:b4:c7:88:fb (RSA)
+42135/tcp open  http    ES File Explorer Name Response httpd
+|_http-title: Site doesn't have a title (text/html).
+45141/tcp open  unknown
+59777/tcp open  http    Bukkit JSONAPI httpd for Minecraft game server 3.6.0 or older
+|_http-title: Site doesn't have a title (text/plain).
+
+Service Info: Device: phone
+</code></pre></div></div>
+
+<p>We see a lot of weird ports, ssh running on port 2222, nmap says “ES File Explorer” on port 42135 and “Bukkit JSONAPI” on port 59777, also it says that the device is a phone. We use findsploit to see if we can find anything.</p>
+
+<p><img src="/assets/images/explore/findsploit.png" alt="" /></p>
+
+<p>we see that there is a module available on metasploit, if we search about vulnerabilities for “es file explorer” we find a repository on <a href="https://github.com/fs0c131y/ESFileExplorerOpenPortVuln">github</a> that has a PoC for a vulnerability found on 2019, it also explains how to use curl to exploit it, the exploit is used againt port 59777, nmap said that file explorer is opened on another port, but since we have that port open let’s try it first, we try to enumerate the files.</p>
+
+<p><img src="/assets/images/explore/listpics.png" alt="" /></p>
+
+<p>We are able to list the pictures taken by the device.</p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>Among the pictures we see one that calls our attention, creds.jpg, we can user the vulnerability to download that file, to do so we just need to make a get request to the path of the file.</p>
+
+<p><img src="/assets/images/explore/downcreds.png" alt="" /></p>
+
+<p>Opening that file we get some possible credentials.</p>
+
+<p><img src="/assets/images/explore/creds.jpg" alt="" /></p>
+
+<p>We could make a typo error with the password which is “Kr1sT!5h@Rp3xPl0r3!”, so we connect through SSH as kristi user and retrieve user.txt.</p>
+
+<p><img src="/assets/images/explore/shell.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>If we run <code class="language-plaintext highlighter-rouge">netstat -nlp</code>, to see the ports open on the machine we see that port 5555 is opened listening to anyone, but nmap didn’t got it, so it is open, but there is something cutting our connection, but if we try to connect with nc we see that we can do it, so to avoid anything that messes our connection let’s make a port rediret with SSH to make our connections from localhost, to do that we write <code class="language-plaintext highlighter-rouge">~C</code> on the shell that we have, and run <code class="language-plaintext highlighter-rouge">-L 5555:127.0.0.1:5555</code>. If you have played with android devices you might know that adb listens on port 5555, so if that is the service running we could connect to the device and root it.</p>
+
+<p><img src="/assets/images/explore/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#android"> Android</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

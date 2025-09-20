@@ -9,21 +9,25 @@
 
   <link rel="stylesheet" href="/css/main.css">
   
-  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.6.1 -->
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
 <title>DevContainer_1 Writeup | 5ubterranean’s Blog</title>
-<meta name="generator" content="Jekyll v3.9.0" />
+<meta name="generator" content="Jekyll v4.4.1" />
 <meta property="og:title" content="DevContainer_1 Writeup" />
 <meta name="author" content="5ubterranean" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Introduction" />
-<meta property="og:description" content="Introduction" />
+<meta name="description" content="DevContainer_1 is an easy machine created by @0x04E1, on this machine we will find a page with a upload function where we will upload a PHP reverse shell, then we we will find us on a Docker container rather than the machine itself, after checking the files we will find a file that is being run every x seconds, we will add a reverse shell to it in order to get a shell on the machine, finaly we will see that we can execute a file without supplying a password, we will see that we have permissions over the directory where that file is located, so we can move it and create a reverse shell on the path of the original file and get root." />
+<meta property="og:description" content="DevContainer_1 is an easy machine created by @0x04E1, on this machine we will find a page with a upload function where we will upload a PHP reverse shell, then we we will find us on a Docker container rather than the machine itself, after checking the files we will find a file that is being run every x seconds, we will add a reverse shell to it in order to get a shell on the machine, finaly we will see that we can execute a file without supplying a password, we will see that we have permissions over the directory where that file is located, so we can move it and create a reverse shell on the path of the original file and get root." />
 <link rel="canonical" href="http://localhost:8000/DevContainer_1" />
 <meta property="og:url" content="http://localhost:8000/DevContainer_1" />
 <meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/devcontainer_1/devcontainer_1.png" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2020-09-24T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/devcontainer_1/devcontainer_1.png" />
+<meta property="twitter:title" content="DevContainer_1 Writeup" />
 <script type="application/ld+json">
-{"datePublished":"2020-09-24T00:00:00-05:00","@type":"BlogPosting","description":"Introduction","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/DevContainer_1"},"url":"http://localhost:8000/DevContainer_1","author":{"@type":"Person","name":"5ubterranean"},"headline":"DevContainer_1 Writeup","dateModified":"2020-09-24T00:00:00-05:00","@context":"https://schema.org"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-09-24T00:00:00-05:00","datePublished":"2020-09-24T00:00:00-05:00","description":"DevContainer_1 is an easy machine created by @0x04E1, on this machine we will find a page with a upload function where we will upload a PHP reverse shell, then we we will find us on a Docker container rather than the machine itself, after checking the files we will find a file that is being run every x seconds, we will add a reverse shell to it in order to get a shell on the machine, finaly we will see that we can execute a file without supplying a password, we will see that we have permissions over the directory where that file is located, so we can move it and create a reverse shell on the path of the original file and get root.","headline":"DevContainer_1 Writeup","image":"http://localhost:8000/assets/images/devcontainer_1/devcontainer_1.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/DevContainer_1"},"url":"http://localhost:8000/DevContainer_1"}</script>
 <!-- End Jekyll SEO tag -->
 
 </head>
@@ -47,11 +51,10 @@
     <div class="container">
       <section id="main_content">
         <article>
+  
   <h2>DevContainer_1 Writeup</h2>
   <time datetime="2020-09-24T00:00:00-05:00" class="by-line">24 Sep 2020</time>
-  <h1 id="introduction"><a href="#header-1"></a>Introduction</h1>
-
-<p>DevContainer_1 is an easy machine created by <a href="https://twitter.com/0x04E1">@0x04E1</a>, on this machine we will find a page with a upload function where we will upload a PHP reverse shell, then we we will find us on a Docker container rather than the machine itself, after checking the files we will find a file that is being run every x seconds, we will add a reverse shell to it in order to get a shell on the machine, finaly we will see that we can execute a file without supplying a password, we will see that we have permissions over the directory where that file is located, so we can move it and create a reverse shell on the path of the original file and get root.</p>
+  <p>DevContainer_1 is an easy machine created by <a href="https://twitter.com/0x04E1">@0x04E1</a>, on this machine we will find a page with a upload function where we will upload a PHP reverse shell, then we we will find us on a Docker container rather than the machine itself, after checking the files we will find a file that is being run every x seconds, we will add a reverse shell to it in order to get a shell on the machine, finaly we will see that we can execute a file without supplying a password, we will see that we have permissions over the directory where that file is located, so we can move it and create a reverse shell on the path of the original file and get root.</p>
 
 <h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
 
@@ -149,12 +152,17 @@ PORT   STATE SERVICE VERSION
 <p><img src="assets/images/devcontainer_1/proof.png" alt="" /></p>
 
 
+  <div class="tags">
   <h3>Tags</h3>
   
   <a href="/tags.html#docker"> Docker</a> &nbsp;
   
   <a href="/tags.html#vulnhub"> Vulnhub</a> &nbsp;
   
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
 </article>
       </section>
     </div>
@@ -166,7 +174,7 @@ PORT   STATE SERVICE VERSION
         <b>5ubterranean</b>
     </span>
     
-    <span>© 2020</span>
+    <span>© 2025</span>
   </a>
 </footer>
 

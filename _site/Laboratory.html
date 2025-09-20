@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Laboratory Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Laboratory Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Laboratory Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Laboratory is an easy rated Linux based machine that was active since November 14th of 2020 to April 17th of 2021, on this machine we will get access to the machine through a vulnerability on an old version of gitlab, reset the password of a gitlab user though gitlab-rails console, and privilege escalate by path hijacking on a suid file." />
+<meta property="og:description" content="Laboratory is an easy rated Linux based machine that was active since November 14th of 2020 to April 17th of 2021, on this machine we will get access to the machine through a vulnerability on an old version of gitlab, reset the password of a gitlab user though gitlab-rails console, and privilege escalate by path hijacking on a suid file." />
+<link rel="canonical" href="http://localhost:8000/Laboratory" />
+<meta property="og:url" content="http://localhost:8000/Laboratory" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/laboratory/laboratory.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-04-17T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/laboratory/laboratory.png" />
+<meta property="twitter:title" content="Laboratory Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-04-17T00:00:00-05:00","datePublished":"2021-04-17T00:00:00-05:00","description":"Laboratory is an easy rated Linux based machine that was active since November 14th of 2020 to April 17th of 2021, on this machine we will get access to the machine through a vulnerability on an old version of gitlab, reset the password of a gitlab user though gitlab-rails console, and privilege escalate by path hijacking on a suid file.","headline":"Laboratory Writeup [HTB]","image":"http://localhost:8000/assets/images/laboratory/laboratory.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Laboratory"},"url":"http://localhost:8000/Laboratory"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/laboratory/laboratory.png/../banner.png>
+  
+  <h2>Laboratory Writeup [HTB]</h2>
+  <time datetime="2021-04-17T00:00:00-05:00" class="by-line">17 Apr 2021</time>
+  <p>Laboratory is an easy rated Linux based machine that was active since November 14th of 2020 to April 17th of 2021, on this machine we will get access to the machine through a vulnerability on an old version of gitlab, reset the password of a gitlab user though gitlab-rails console, and privilege escalate by path hijacking on a suid file.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.216
+nmap -sC -sV -p 80,443, -Pn -o scan.txt 10.10.10.216
+
+PORT    STATE SERVICE  VERSION
+80/tcp  open  http     Apache httpd 2.4.41
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+|_http-title: Did not follow redirect to https://laboratory.htb/
+443/tcp open  ssl/http Apache httpd 2.4.41 ((Ubuntu))
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+|_http-title: The Laboratory
+| ssl-cert: Subject: commonName=laboratory.htb
+| Subject Alternative Name: DNS:git.laboratory.htb
+| Not valid before: 2020-07-05T10:39:28
+|_Not valid after:  2024-03-03T10:39:28
+| tls-alpn: 
+|_  http/1.1
+Service Info: Host: laboratory.htb
+</code></pre></div></div>
+
+<p>There is only two ports open, ssh and a webpage on port 443, if we visit the webpage we get redirected to “laboratory.htb”, so we add it to our hosts file and visit the webpage.</p>
+
+<p><img src="/assets/images/laboratory/webpage.png" alt="" /></p>
+
+<p>Checking the certificate file we see a subdomain, <code class="language-plaintext highlighter-rouge">git.laboratory.htb</code>.</p>
+
+<p><img src="/assets/images/laboratory/certificate.png" alt="" /></p>
+
+<p>There we find a gitlab instance, so we register an account to get access to it.</p>
+
+<p><img src="/assets/images/laboratory/register.png" alt="" /></p>
+
+<p>Exploring the available projects we find one project made by “dexter” user, SecureWebsite.</p>
+
+<p><img src="/assets/images/laboratory/securewebsite.png" alt="" /></p>
+
+<p>There isn’t anything interestin on it, so we move on, if we go to <code class="language-plaintext highlighter-rouge">https://git.laboratory.htb/help</code>, we can find the version of gitlab.</p>
+
+<p><img src="/assets/images/laboratory/version.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>Searching for vulnerabilities for that gitlab version we find a <a href="https://hackerone.com/reports/827052">Hackerone report</a> that explains a vulnerability for arbitrary file read, and RCE on gitlab, to perform the file read we have to create two projects, create an issue with a path traversal description and move the issue to the second project, then the file that we pointed to is appended on the issue, the RCE is got by a cookie deserialization, to do that we have to get the secrets.yml file of gitlab, run a local gitlab instance (the easiest way is using docker container of the exact same version), and set the values of secrets.yml to be the same that we got from the other evironment, if you want to avoid doing all that set up there is an exploit written for metasploit on <a href="https://packetstormsecurity.com/files/160441/GitLab-File-Read-Remote-Code-Execution.html">packectstorm</a>, to be able to use it we have to add it inside a directory on, <code class="language-plaintext highlighter-rouge">/root/.msf4/modules/exploits/</code>, (don’t use “-“ on the name, rather use “_”, otherwise the exploit wont appear), then on msfconsole run “updatedb”, if you can’t find the exploit with “search”, you can use it directly by using the path where you put the exploit, for example I put the file inside “/root/.msf4/modules/exploits/linux/http/”, so to use the exploit we can use “use exploit/linux/http/gitlab_rce”, notice that I named the exploit <code class="language-plaintext highlighter-rouge">gitlab_rce.rb</code>. Once we have the exploit on metasploit we just have to set all the settings and the payload according to the target.</p>
+
+<p><img src="/assets/images/laboratory/msfoptions.png" alt="" /></p>
+
+<p>Once we run the exploit we get a shell inside the machine as git user.</p>
+
+<p><img src="/assets/images/laboratory/shell1.png" alt="" /></p>
+
+<h1 id="lateral-movement"><a href="#header-1"></a>Lateral Movement</h1>
+
+<p>After exploring the machine we see that we are inside a docker container, so on this case we want to escalate privileges on it or rather escape from it, earlier we saw that there is a user called “dexter” on gitlab, so now that we are inside there might be a way of accesing to his information. Going to the <a href="https://docs.gitlab.com/ee/security/reset_user_password.html">documentation</a> of gitlab we find a way to reset the password of users so we follow the steps to reset the password of dexter user (We would rather recover the password of dexter, or at least his hash since further it would be handy on case of password reuse). The commands that we need to run are:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>gitlab-rails console
+user <span class="o">=</span> User.find_by_username <span class="s1">'dexter'</span>
+user.password <span class="o">=</span> <span class="s1">'hacked123'</span>
+user.password_confirmation <span class="o">=</span> <span class="s1">'hacked123'</span>
+user.save!
+</code></pre></div></div>
+
+<p><img src="/assets/images/laboratory/pwdreset.png" alt="" /></p>
+
+<p>Now we can access to dexter user on gitlab, there we find a private repository, “SecureDocker”.</p>
+
+<p><img src="/assets/images/laboratory/repositories.png" alt="" /></p>
+
+<p>Checking that repository we find a ssh key, so using it we can access to the machine as dexter and retrieve user.txt.</p>
+
+<p><img src="/assets/images/laboratory/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>Searching for files with suid (find / -perm /4000 2&gt; /dev/null) we find a strange file with suid, <code class="language-plaintext highlighter-rouge">/usr/local/bin/docker-security</code>, it is a ELF file so we would need to reverse engineer the file, but first we upload pspy to the machine and try to see what happens when the file is ran, there we see that chmod is ran by root.</p>
+
+<p><img src="/assets/images/laboratory/pspy.png" alt="" /></p>
+
+<p>As we see chmod is not called as a abosule path, se we can make a path hijacking to execute what we want on the machine, to do so we create file that will start a bash shell call it chmod, we give it run permissions, set our current locations as the first directory on our PATH, and when we run the file we will be root.</p>
+
+<p><img src="/assets/images/laboratory/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#gitlab"> gitlab</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

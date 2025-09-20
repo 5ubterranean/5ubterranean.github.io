@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>BountyHunter Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>BountyHunter Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="BountyHunter Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="BountyHunter is a Linux based machine that was active since July 24th to November 20th, on this machine we will find a XXE vulnerability and use it with a php wrapper to read internal files and get sensitive information, with the information gotten we will be able to connect to the machine through SSH, once inside the machine we will analyze a python script to find how we can abuse it to get code execution as root user and finish with the machine." />
+<meta property="og:description" content="BountyHunter is a Linux based machine that was active since July 24th to November 20th, on this machine we will find a XXE vulnerability and use it with a php wrapper to read internal files and get sensitive information, with the information gotten we will be able to connect to the machine through SSH, once inside the machine we will analyze a python script to find how we can abuse it to get code execution as root user and finish with the machine." />
+<link rel="canonical" href="http://localhost:8000/BountyHunter" />
+<meta property="og:url" content="http://localhost:8000/BountyHunter" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/bountyhunter/bountyhunter.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-11-20T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/bountyhunter/bountyhunter.png" />
+<meta property="twitter:title" content="BountyHunter Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-11-20T00:00:00-05:00","datePublished":"2021-11-20T00:00:00-05:00","description":"BountyHunter is a Linux based machine that was active since July 24th to November 20th, on this machine we will find a XXE vulnerability and use it with a php wrapper to read internal files and get sensitive information, with the information gotten we will be able to connect to the machine through SSH, once inside the machine we will analyze a python script to find how we can abuse it to get code execution as root user and finish with the machine.","headline":"BountyHunter Writeup [HTB]","image":"http://localhost:8000/assets/images/bountyhunter/bountyhunter.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/BountyHunter"},"url":"http://localhost:8000/BountyHunter"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/bountyhunter/bountyhunter.png/../banner.png>
+  
+  <h2>BountyHunter Writeup [HTB]</h2>
+  <time datetime="2021-11-20T00:00:00-05:00" class="by-line">20 Nov 2021</time>
+  <p>BountyHunter is a Linux based machine that was active since July 24th to November 20th, on this machine we will find a XXE vulnerability and use it with a php wrapper to read internal files and get sensitive information, with the information gotten we will be able to connect to the machine through SSH, once inside the machine we will analyze a python script to find how we can abuse it to get code execution as root user and finish with the machine.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.11.100
+nmap -sC -sV -p 80,22, -Pn -o scan.txt 10.10.11.100
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.2 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   3072 d4:4c:f5:79:9a:79:a3:b0:f1:66:25:52:c9:53:1f:e1 (RSA)
+|   256 a2:1e:67:61:8d:2f:7a:37:a7:ba:3b:51:08:e8:89:a6 (ECDSA)
+|_  256 a5:75:16:d9:69:58:50:4a:14:11:7a:42:c1:b6:23:44 (ED25519)
+80/tcp open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+|_http-title: Bounty Hunters
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>We see only two ports open, SSH and a webpage on port 80, so we visite the webpage.</p>
+
+<p><img src="/assets/images/bountyhunter/website.png" alt="" /></p>
+
+<p>It’s a simple page to display who they are, if we click on “portal” we get to a site that tells us to go to <code class="language-plaintext highlighter-rouge">http://10.10.11.100/log_submit.php</code>.</p>
+
+<p><img src="/assets/images/bountyhunter/submit.png" alt="" /></p>
+
+<p>We see that it is a report system where they probably put any vulnerability found together with the bounty gotten, let’s upload a report to see what happens.</p>
+
+<p><img src="/assets/images/bountyhunter/report.png" alt="" /></p>
+
+<p>We get the message “If DB were ready, would have added”, so that means that the database isn’t implemented yet, let’s see how the request looks like.</p>
+
+<p><img src="/assets/images/bountyhunter/request.png" alt="" /></p>
+
+<p>We see that the data is base64 encoded, inspector can decode the data automatically for us.</p>
+
+<p><img src="/assets/images/bountyhunter/inspector.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>We see that what we sent was a xml file, xml can be vulnerable to XXE, we can add an external entity and see if we can exploit this vulnerability, we will use <a href="https://portswigger.net/bappstore/65033cbd2c344fbabe57ac060b5dd100">hackevector</a> to handle the encoding before sending the request to the server.</p>
+
+<p><img src="/assets/images/bountyhunter/xxereq.png" alt="" /></p>
+
+<p><img src="/assets/images/bountyhunter/xxeres.png" alt="" /></p>
+
+<p>We successfully exploited the XXE vulnerability, now we can read internal files, while testing that we left feroxbuster on the backgroud, checking the results we see a “db.php” file which returns 0 size.</p>
+
+<p><img src="/assets/images/bountyhunter/ferox.png" alt="" /></p>
+
+<p>It probably just is written to don’t show anything when accessed to, but there could be useful information so we can try to read the source code of it.</p>
+
+<p><img src="/assets/images/bountyhunter/filedb.png" alt="" /></p>
+
+<p><img src="/assets/images/bountyhunter/filedbres.png" alt="" /></p>
+
+<p>We get nothing, we know that the file exists, so maybe the file is empty, or the output that we get from php files is the same that we would get when we access to them from the webpage, this can block us from reading php files, but what we do with the XXE vulnerability is use php wrappers, being “file://” one of those, so we can try another wrapper, <code class="language-plaintext highlighter-rouge">php://filter/convert.base64-encode/resource</code>, this will base64 encode the file before reading it, so we won’t have problems with php code, then we use it to read the file.</p>
+
+<p><img src="/assets/images/bountyhunter/b64.png" alt="" /></p>
+
+<p><img src="/assets/images/bountyhunter/b64res.png" alt="" /></p>
+
+<p>Decoding the output gotten we find the credentials to access the database on the server.</p>
+
+<p><img src="/assets/images/bountyhunter/dbfile.png" alt="" /></p>
+
+<p>When we read the passwd file we found out that the only user available on the server is “development”, so let’s try to access as that user with the password retrieved.</p>
+
+<p><img src="/assets/images/bountyhunter/shell.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>We read contract.txt</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hey team,
+
+I'll be out of the office this week but please make sure that our contract with Skytrain Inc gets completed.
+
+This has been our first job since the "rm -rf" incident and we can't mess this up. Whenever one of you gets on please have a look at the internal tool they sent over. There have been a handful of tickets submitted that have been failing validation and I need you to figure out why.
+
+I set up the permissions for you to test this. Good luck.
+
+-- John
+</code></pre></div></div>
+
+<p>It talks about an internal tool that they’re using, that there are tickets that have failed validation and that they have set up the proper permissions for testing, so we check if we can execute anything with sudo.</p>
+
+<p><img src="/assets/images/bountyhunter/sudo.png" alt="" /></p>
+
+<p>We see that we can run <code class="language-plaintext highlighter-rouge">/opt/skytrain_inc/ticketValidator.py</code>, so let’s read it to see what it does.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#Skytrain Inc Ticket Validation System 0.1
+#Do not distribute this file.
+</span>
+<span class="k">def</span> <span class="nf">load_file</span><span class="p">(</span><span class="n">loc</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">loc</span><span class="p">.</span><span class="nf">endswith</span><span class="p">(</span><span class="sh">"</span><span class="s">.md</span><span class="sh">"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nf">open</span><span class="p">(</span><span class="n">loc</span><span class="p">,</span> <span class="sh">'</span><span class="s">r</span><span class="sh">'</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nf">print</span><span class="p">(</span><span class="sh">"</span><span class="s">Wrong file type.</span><span class="sh">"</span><span class="p">)</span>
+        <span class="nf">exit</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">ticketFile</span><span class="p">):</span>
+    <span class="c1">#Evaluates a ticket to check for ireggularities.
+</span>    <span class="n">code_line</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">x</span> <span class="ow">in</span> <span class="nf">enumerate</span><span class="p">(</span><span class="n">ticketFile</span><span class="p">.</span><span class="nf">readlines</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">x</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s"># Skytrain Inc</span><span class="sh">"</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">False</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">x</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">## Ticket to </span><span class="sh">"</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">False</span>
+            <span class="nf">print</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Destination: </span><span class="si">{</span><span class="sh">'</span><span class="s"> </span><span class="sh">'</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">split</span><span class="p">(</span><span class="sh">'</span><span class="s"> </span><span class="sh">'</span><span class="p">)[</span><span class="mi">3</span><span class="si">:</span><span class="p">])</span><span class="si">}</span><span class="sh">"</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="n">x</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">__Ticket Code:__</span><span class="sh">"</span><span class="p">):</span>
+            <span class="n">code_line</span> <span class="o">=</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="n">code_line</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">==</span> <span class="n">code_line</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">x</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">**</span><span class="sh">"</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">False</span>
+            <span class="n">ticketCode</span> <span class="o">=</span> <span class="n">x</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sh">"</span><span class="s">**</span><span class="sh">"</span><span class="p">,</span> <span class="sh">""</span><span class="p">).</span><span class="nf">split</span><span class="p">(</span><span class="sh">"</span><span class="s">+</span><span class="sh">"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nf">int</span><span class="p">(</span><span class="n">ticketCode</span><span class="p">)</span> <span class="o">%</span> <span class="mi">7</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+                <span class="n">validationNumber</span> <span class="o">=</span> <span class="nf">eval</span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sh">"</span><span class="s">**</span><span class="sh">"</span><span class="p">,</span> <span class="sh">""</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">validationNumber</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">True</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">False</span>
+    <span class="k">return</span> <span class="bp">False</span>
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">fileName</span> <span class="o">=</span> <span class="nf">input</span><span class="p">(</span><span class="sh">"</span><span class="s">Please enter the path to the ticket file.</span><span class="se">\n</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">ticket</span> <span class="o">=</span> <span class="nf">load_file</span><span class="p">(</span><span class="n">fileName</span><span class="p">)</span>
+    <span class="c1">#DEBUG print(ticket)
+</span>    <span class="n">result</span> <span class="o">=</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">ticket</span><span class="p">)</span>
+    <span class="nf">if </span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+        <span class="nf">print</span><span class="p">(</span><span class="sh">"</span><span class="s">Valid ticket.</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nf">print</span><span class="p">(</span><span class="sh">"</span><span class="s">Invalid ticket.</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">ticket</span><span class="p">.</span><span class="n">close</span>
+
+<span class="nf">main</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>So let’s enumerate what this script does.</p>
+
+<ol>
+  <li>Ask for the path to a file.</li>
+  <li>Checks that the name of the file ends with “.md”.</li>
+  <li>Checks that the first line starts with “# Skutrain Inc”.</li>
+  <li>Checks that the second line starts with “## Ticket to” and prints what is after that.</li>
+  <li>Validates that the third line starts with “<em>_Ticket Code:</em>_”, if that’s the case continues with the next line.</li>
+  <li>Checks that the fourth line starts with “**”.</li>
+  <li>Erases the “**” on the line and splits the text if there is any “+” sign, and takes the first string.</li>
+  <li>Checks that the module of the first vaule is equal to 4.</li>
+  <li>Passes the origianl value (before spliting it) to an eval function.</li>
+</ol>
+
+<p>If we can reach the eval function we can get code execution, we can use the information gotten to build our own ticket, also we can find some examples on <code class="language-plaintext highlighter-rouge">/opt/skytrain_inc/invalid_tickets/</code>, so we build our own ticket and pass it to the script, and finish with the machine.</p>
+
+<p><img src="/assets/images/bountyhunter/root.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#xxe"> XXE</a> &nbsp;
+  
+  <a href="/tags.html#python"> python</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

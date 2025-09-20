@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>HTB Nest Write-up (Español)</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Nest Write-up (Español) | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="HTB Nest Write-up (Español)" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="I cloned my writeup that was originally posted on medium" />
+<meta property="og:description" content="I cloned my writeup that was originally posted on medium" />
+<link rel="canonical" href="http://localhost:8000/Nest-Espa%C3%B1ol" />
+<meta property="og:url" content="http://localhost:8000/Nest-Espa%C3%B1ol" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/Nest/1__3ANISohoQRDGlDiHTsHrwg.jpeg" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-06-06T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/Nest/1__3ANISohoQRDGlDiHTsHrwg.jpeg" />
+<meta property="twitter:title" content="HTB Nest Write-up (Español)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-06-06T00:00:00-05:00","datePublished":"2020-06-06T00:00:00-05:00","description":"I cloned my writeup that was originally posted on medium","headline":"HTB Nest Write-up (Español)","image":"http://localhost:8000/assets/images/Nest/1__3ANISohoQRDGlDiHTsHrwg.jpeg","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Nest-Espa%C3%B1ol"},"url":"http://localhost:8000/Nest-Espa%C3%B1ol"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/Nest/1__3ANISohoQRDGlDiHTsHrwg.jpeg/../banner.png>
+  
+  <h2>HTB Nest Write-up (Español)</h2>
+  <time datetime="2020-06-06T00:00:00-05:00" class="by-line">06 Jun 2020</time>
+  <p>I cloned my writeup that was originally posted on <a href="https://medium.com/@5ubterranean/htb-nest-write-up-espa%C3%B1ol-ae4cc92a7a4f">medium</a></p>
+
+<p>Nest es una máquina basada en Windows que estuvo activa desde el 25 de enero del 2020 hasta el 6 de Junio, a pesar de estar calificada como “fácil” es una máquina bastante “enredada”, en esta máquina no obtendremos una shell hasta el final, así que solo interactuaremos con ella a través de las carpetas compartidas y un servicio llamado “HQK reporting service”, conseguiremos nuestras primeras credenciales por un archivo disponible en una de las carpetas compartidas sin necesidad de credenciales, con este usuario encontraremos otras credenciales, pero ahora encriptadas, encontraremos un proyecto de Visual Studio el cual fue usado para encriptar las credenciales así que tendremos que leerlo y usarlo para desencriptarlas, luego con este usuario encontraremos un programa escrito en C# y un archivo vacío, pero de hecho este tiene información en alternate data streams, por lo que necesitaremos una máquina Windows para acceder a ella, allí encontraremos una contraseña que nos servirá para activar el “Debug mode” en el servidor HQK, con está capacidad encontraremos la contraseña de Administrator pero una vez más, encriptada, en este caso tendremos de descompilar el programa de C#, encontrar la función de desencriptación y usarla, y con eso habremos acabado con la máquina.</p>
+
+<h1 id="enumeración">Enumeración</h1>
+
+<p>Empezamos usando masscan para encontrar todos los puertos disponibles y luego usamos nmap para conseguir más información de los mismos.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 — <span class="nv">rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0–65535 10.10.10.178  
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 445,4386 <span class="nt">-Pn</span> <span class="nt">-o</span> scan.txt 10.10.10.178
+
+PORT     STATE SERVICE       VERSION  
+445/tcp  open  microsoft-ds?  
+4386/tcp open  unknown  
+| fingerprint-strings:   
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Kerberos, LANDesk-RC, LDAPBindReq, LDAPSearchReq, LPDString, NULL, RPCCheck, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServer, TerminalServerCookie, X11Probe:   
+|     Reporting Service V1.2  
+|   FourOhFourRequest, GenericLines, GetRequest, HTTPOptions, RTSPRequest, SIPOptions:   
+|     Reporting Service V1.2  
+|     Unrecognised <span class="nb">command</span>  
+|   Help:   
+|     Reporting Service V1.2  
+|     This service allows <span class="nb">users </span>to run queries against databases using the legacy HQK format  
+|     AVAILABLE COMMANDS <span class="nt">---</span>  
+|     LIST  
+|     SETDIR &lt;Directory<span class="se">\_</span>Name&gt;  
+|     RUNQUERY &lt;Query<span class="se">\_</span>ID&gt;  
+|     DEBUG &lt;Password&gt;  
+|<span class="se">\_</span>    HELP &lt;Command&gt;
+</code></pre></div></div>
+
+<p>Ya que tenemos el servicio de SMB (puerto 445) abierto usamos <code class="language-plaintext highlighter-rouge">smbclient</code> para ver qué carpetas está disponibles, <code class="language-plaintext highlighter-rouge">smbclient -L \\10.10.10.178</code>.</p>
+
+<p><img src="/assets/images/Nest/1__m9GXVaH__nNdIbHD1drk1og.png" alt="" /></p>
+
+<h1 id="primer-usuario">Primer usuario</h1>
+
+<p>Conseguimos nuestro primer usuario a través de la carpeta “Data”, si bien podemos navegar por esta usando <code class="language-plaintext highlighter-rouge">smbclient</code> yo prefiero montar las carpetas, primero creo un direcotrio “share” y luego lo monto ahí: <code class="language-plaintext highlighter-rouge">mount -t cifs \\\\10.10.10.178\\Data share</code>.<br />
+Y ahora que está montada podemos usar <code class="language-plaintext highlighter-rouge">tree</code> para explorar su contenido, el argumento “f” hace que imprima toda la ruta hacia el archivo (así puedo copiar y pegar la ruta para interactuar con él de forma más sencilla), “a” para ver archivos ocultos y “s” para ver el tamaño, <code class="language-plaintext highlighter-rouge">tree -fas share/</code>.</p>
+
+<p><img src="/assets/images/Nest/1__4kPO2r9fKT1dTA__F8HyIMA.png" alt="" /></p>
+
+<p>Tenemos dos archivos, revisamos “Welcome Email.txt”.</p>
+
+<p><img src="/assets/images/Nest/1__2C5Av6F4WnwGVjBEKjuf6g.png" alt="" /></p>
+
+<p>Y encontramos la credenciales para nuestro primer usuario, TempUser,<br />
+welcome2019.</p>
+
+<h1 id="segundo-usuario">Segundo usuario</h1>
+
+<p>Empezamos revisando a qué carpetas podemos acceder con este usuario usando crackmapexec: <code class="language-plaintext highlighter-rouge">cme smb 10.10.10.178 -u TempUser -p welcome2019 — shares</code>.</p>
+
+<p><img src="/assets/images/Nest/1__PcFTwgmsjw1u5IwVxvtgWA.png" alt="" /></p>
+
+<p>Volvemos a revisar “Data” pero con este nuevo usuario: <code class="language-plaintext highlighter-rouge">mount -t cifs -o user="TempUser" \\\\10.10.10.178\\Data share</code>, y una vez más usamos <code class="language-plaintext highlighter-rouge">tree</code>.</p>
+
+<p><img src="/assets/images/Nest/1__3uzikyf5__vABM49__XDRE0w.png" alt="" /></p>
+
+<p>Tenemos acceso a algunos archivos nuevos, aunque de estos 2 son los que nos importan, primero revisamos “RU_config.xml”.</p>
+
+<p><img src="/assets/images/Nest/1__9Uip__D__Xvugoik1a5iJI2Q.png" alt="" /></p>
+
+<p>Encontramos un nuevo usuario y contraseña, esta parece estar codificada en base64, pero aunque la decodifiquemos no obtendremos nada legible, por lo que tendremos que seguir revisando los archivos, nuestra siguiente pista la encontraremos al final del archivo “config.xml” dentro de “Notepadplusplus”.</p>
+
+<p><img src="/assets/images/Nest/1__J40EkgeF65168l1SzOZwtg.png" alt="" /></p>
+
+<p>Ahí vemos una ruta a una carpeta compartida “\\HTB-NEST\Secure$\IT\Carl\Temp.txt”. Procedemos a montar “Secure$” a ver si encontramos algo, <code class="language-plaintext highlighter-rouge">mount -t cifs -o username="TempUser" \\\\10.10.10.178\\Secure$ share</code>, y de nuevo usamos tree.</p>
+
+<p><img src="/assets/images/Nest/1__A11fMzbLGEyEw9xJbR6F5w.png" alt="" /></p>
+
+<p>Y… no vemos nada, pero el archivo nos decía que había un directorio llamado “Carl” en “IT”, ¿qué tal si intentamos listar “share/IT/Carl”?</p>
+
+<p><img src="/assets/images/Nest/1__xN8JSNNr3SNCcGUwsnVcvw.png" alt="" /></p>
+
+<p>Sí tenemos carpetas, esto se debe a que no tenemos permisos para listar los archivos dentro de IT, pero eso no significa que no tengamos los permisos para entrar al mismo, pero para ello tendríamos que saber el nombre de la carpeta a la cual queremos entrar, muy bien volvemos a usar <code class="language-plaintext highlighter-rouge">tree</code> para ver que hay aquí.</p>
+
+<p><img src="/assets/images/Nest/1__ri__2I9xICE__6FfWme3JYHA.png" alt="" /></p>
+
+<p>Tenemos varios archivos dentro la carpeta “VB Projects”, y estos no son más que un proyecto de Visual Basic en Visual Studio, así que los copiamos a una máquina Windows y abrimos el proyecto en Visual Studio para poder tener todo de manera más ordenada, luego de observar el proyecto el archivo que nos importa es “Utils.vb”.</p>
+
+<p><img src="/assets/images/Nest/1__mfgTm__ZLi1WYA__a2kRk__qg.png" alt="" /></p>
+
+<p>Este archivo tiene unas funciones “EncryptString” y “DecryptString”, la que nos interesa es la de decrypt ya que tenemos la contraseña encriptada.</p>
+
+<p><img src="/assets/images/Nest/1__2gZh3Z__lyWH__KEOx0oa3aw.png" alt="" /></p>
+
+<p>Al menos yo nunca he trabajado con proyectos de Visual Studio, por lo que arreglarlo para que funcione me tomaría demasiado tiempo, así que opté por algo más sencillo, utilicé la página <a href="https://dotnetfiddle.net/">https://dotnetfiddle.net/</a> para copiar y pegar los pedazos de código que quería, hacerle unas modificaciones y desencriptar la contraseña (el código se hace algo largo así que no lo pongo).</p>
+
+<p><img src="/assets/images/Nest/1____I6UAiCMRt4N7sg6ktcBJg.png" alt="" /></p>
+
+<p>Luego de ejecutar el programa obtenemos que la contraseña es “xRxRxPANCAK3SxRxRx”.</p>
+
+<h1 id="acceso-a-administrator">Acceso a administrator</h1>
+
+<p>Ahora con este nuevo usuario montamos la carpeta “Users”, <code class="language-plaintext highlighter-rouge">mount -t cifs -o username="c.smith" \\\\10.10.10.178\\Users share</code>, y revisamos con <code class="language-plaintext highlighter-rouge">tree</code>.</p>
+
+<p><img src="/assets/images/Nest/1__HIAtZadzB2sZohHPkYEPvQ.png" alt="" /></p>
+
+<p>Como vemos aquí encontramos el archivo “user.txt”, y los demás archivos tienen que ver con algo llamado “HQK”, pero ¿qué es eso?, regresamos a nuestro escaneo de puertos, este nos dijo que el puerto 4386 también estaba abierto, nos conectamos a este usando <code class="language-plaintext highlighter-rouge">telnet</code> (nc tiene problemas con este servicio).</p>
+
+<p><img src="/assets/images/Nest/1__XPNxIcypx6TqQ5iVISJzVg.png" alt="" /></p>
+
+<p>Vemos que es un servicio que nos da cierta interacción con los archivos internos de la máquina, y parece tener un modo de debug, el cual nos debería dar unas funciones extra. Entre los archivos que encontramos estaba “Debug Mode Password.txt”, pero este está vacío, aun así este nos puede llevar a cierta información a través de Aternate Data Streams (o <a href="https://es.wikipedia.org/wiki/Alternate_Data_Streams">Flujos Alternativos de Datos</a> en español), pero para acceder a esta información necesitaremos una vez más de una máquina con Windows. Para que la máquina Windows pueda acceder a la máquina de HTB tenemos que routear el tráfico a través de nuestra máquina con Linux, para esto seguimos las instrucciones de un <a href="https://github.com/juliourena/plaintext/blob/master/hackthebox/ConnWin-KaliVPN.sh">script</a> creado por <a href="https://www.youtube.com/channel/UC2o1vzpUIvgf0VMJIMKZ_rQ">Julio Ureña</a> para este propósito, todo lo que tenemos que hacer el habilitar el port forawarnding en nuestra máquina Linux (si han tratado de hacer ataques MiTM esto les resultará familiar).</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>iptables <span class="nt">--table</span> nat <span class="nt">--append</span> POSTROUTING <span class="nt">--out-interface</span> tun0 <span class="nt">-j</span> MASQUERADE  
+<span class="nb">echo </span>1 <span class="o">&gt;</span> /proc/sys/net/ipv4/ip<span class="se">\_</span>forward
+</code></pre></div></div>
+
+<p>Y luego agregamos la ruta a Windows con el comando: <code class="language-plaintext highlighter-rouge">route add 10.10.10.0 mask 255.255.255.0 192.168.56.109</code>. Aquí si cometemos el error de acceder a “\\10.10.10.178\Users” directamente no podremos acceder a la carpeta c.smith ya que estaremos logueados como invitado ya que no introducimos ningunas credenciales.</p>
+
+<p><img src="/assets/images/Nest/1__7ZwNvnqLWT7SkLqB71775g.png" alt="" /></p>
+
+<p>Volvemos a un cmd y borramos la carpeta compartida de las rutas guardadas por Windows, para esto usamos: <code class="language-plaintext highlighter-rouge">net use \\10.10.10.178\Users /delete</code>.<br />
+Ahora montamos de nuevo la carpeta pero ahora introduciendo las credenciales correspondientes, en este caso lo montamos a una unidad “T:”, esto no es necesario pero prefiero hacerlo así: <code class="language-plaintext highlighter-rouge">net use T: \\10.10.10.178\Users /u:HTB-NEST\c.smith xRxRxPANCAK3SxRxRx</code>, ahora sí podemos acceder a la carpeta.</p>
+
+<p><img src="/assets/images/Nest/1__1JjB5ib__HVW4ad0JNHWKBw.png" alt="" /></p>
+
+<p>Pero para poder obtener la información que queremos tenemos que usar el cmd, una vez en la carpeta usamos el comando <code class="language-plaintext highlighter-rouge">dir /r</code>, como se ve, si solo usamos <code class="language-plaintext highlighter-rouge">dir</code> no obtendremos la información que queremos.</p>
+
+<p><img src="/assets/images/Nest/1__GHWgrGePBBIOkflkhl86cQ.png" alt="" /></p>
+
+<p>Para conseguir la información usamos el comando: <code class="language-plaintext highlighter-rouge">more &lt; “Debug Mode Password.txt:Password:$DATA”</code>.</p>
+
+<p><img src="/assets/images/Nest/1__Iax7KT1MyuFGwtaBJvrKnA.png" alt="" /></p>
+
+<p>Y conseguimos la contraseña para desbloque el Debug Mode, WBQ201953D8w. Regresamos a nuestra máquina Linux, nos conectamos al puerto 4386 y activamos el Debug Mode.</p>
+
+<p><img src="/assets/images/Nest/1__J12WsmNAMZjOj4mLckb98g.png" alt="" /></p>
+
+<p>Tenemos dos nuevos comandos, pero el importante es “SHOWQUERY” que nos permitirá leer archivos, subimos un directorio y entramos a “LDAP”, ahí encontramos el archivo “Ldap.conf”.</p>
+
+<p><img src="/assets/images/Nest/1__ewdCdZhJOWQhEWPNaD7sBw.png" alt="" /></p>
+
+<p>Al leerlo encontramos la contraseña del usuario “Administrator”, pero una vez más está encriptada.</p>
+
+<p><img src="/assets/images/Nest/1__p8__gcWS2wwuuJAY__ObWuYQ.png" alt="" /></p>
+
+<p>Al lado de este archivo estaba “HqkLdap.exe”, pero al ser un ejecutable no podemos leerlo, pero luego de pensar por un rato recordamos que ya hemos visto ese archivo, este se encontraba en la carpeta “Users”, ya que aún lo tenemos montado revisamos qué tipo de archivo es.</p>
+
+<p><img src="/assets/images/Nest/1__XYAX5lQXGZno0L6iIcXbcA.png" alt="" /></p>
+
+<p>Bueno es un archivo .Net, en búsqueda de un descompilador para .Net nos encontramos con <a href="https://www.jetbrains.com/es-es/decompiler/">dotPeek</a>, muy bien, una vez más vamos a Windows, luego de revisar el código vemos que lo que nos interesa está en HqkLdap/CR.</p>
+
+<p><img src="/assets/images/Nest/1__MZyqv9HahktrzC3hPvh8BQ.png" alt="" /></p>
+
+<p>En este caso tenemos código en C#, por suerte dotnetfiddle también puede manejarlo, así que regresamo ahí y copiamos las partes de código que nos interesan, resultando en el programa:</p>
+
+<pre><code class="language-C#">using System;  
+using System.IO;  
+using System.Security.Cryptography;  
+using System.Text;  
+       
+public class CR  
+{  
+ private const string K = "667912";  
+    private const string I = "1L1SA61493DRV53Z";  
+    private const string SA = "1313Rf99";
+
+public static string DS(string EncryptedString)  
+    {  
+      return string.IsNullOrEmpty(EncryptedString) ? string.Empty : CR.RD(EncryptedString, "667912", "1313Rf99", 3, "1L1SA61493DRV53Z", 256);  
+    }  
+ private static string RD(  
+      string cipherText,  
+      string passPhrase,  
+      string saltValue,  
+      int passwordIterations,  
+      string initVector,  
+      int keySize)  
+    {  
+      byte\[\] bytes1 = Encoding.ASCII.GetBytes(initVector);  
+      byte\[\] bytes2 = Encoding.ASCII.GetBytes(saltValue);  
+      byte\[\] buffer = Convert.FromBase64String(cipherText);  
+      byte\[\] bytes3 = new Rfc2898DeriveBytes(passPhrase, bytes2, passwordIterations).GetBytes(checked ((int) Math.Round(unchecked ((double) keySize / 8.0))));  
+      AesCryptoServiceProvider cryptoServiceProvider = new AesCryptoServiceProvider();  
+      cryptoServiceProvider.Mode = CipherMode.CBC;  
+      ICryptoTransform decryptor = cryptoServiceProvider.CreateDecryptor(bytes3, bytes1);  
+      MemoryStream memoryStream = new MemoryStream(buffer);  
+      CryptoStream cryptoStream = new CryptoStream((Stream) memoryStream, decryptor, CryptoStreamMode.Read);  
+      byte\[\] numArray = new byte\[checked (buffer.Length + 1)\];  
+      int count = cryptoStream.Read(numArray, 0, numArray.Length);  
+      memoryStream.Close();  
+      cryptoStream.Close();  
+      return Encoding.ASCII.GetString(numArray, 0, count);  
+    }  
+ public static void Main()  
+ {  
+  Console.WriteLine(DS("yyEq0Uvvhq2uQOcWG8peLoeRQehqip/fKdeG/kjEVb4="));  
+ }  
+}
+</code></pre>
+
+<p>Y al ejecutarlos no obtenemos la contraseña.</p>
+
+<p><img src="/assets/images/Nest/1__lX0lX68Pys65M5aSeqUNsw.png" alt="" /></p>
+
+<p>Utilizamos crackmapexec para comprobar que esta sea correcta: <code class="language-plaintext highlighter-rouge">cme smb 10.10.10.178 -u "Administrator" -p "XtH4nkS4Pl4y1nGX" --shares</code>.</p>
+
+<p><img src="/assets/images/Nest/1__HO0nvuquQaPoks4DwAA9jw.png" alt="" /></p>
+
+<p>Nos devuelve el mensaje “Pwn3d!”, por lo que podemos conseguir una shell, para esto utilizamos psexec de la herramientas de Impacket: <code class="language-plaintext highlighter-rouge">python3 psexec.py Administrator:XtH4nkS4Pl4y1nGX@10.10.10.178</code>.</p>
+
+<p><img src="/assets/images/Nest/1__qNZ1tdoOa7EtPAqk06VPyQ.png" alt="" /></p>
+
+<p>Y lo logramos, somos nt authority, y tenemos acceso al archivo root.txt, para estar marcada como fácil fue una máquina que tomó bastante tiempo, si bien los pasos no fueron demasiado complicados encontrar qué había que hacer tomó una buena cantidad de tiempo.</p>
+
+<h3 id="descargo-de-responsabilidad">Descargo de responsabilidad</h3>
+
+<p>Todos los recursos brindados en este post se hicieron puramente con fines educativos y de concientización, el autor no se hace responsable por las acciones que las personas puedan realizar con el contenido del mismo.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#windows"> Windows</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

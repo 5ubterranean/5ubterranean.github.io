@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>ZAP Scripting - Cheap Autorize</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>ZAP Scripting - Cheap Autorize | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="ZAP Scripting - Cheap Autorize" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction" />
+<meta property="og:description" content="Introduction" />
+<link rel="canonical" href="http://localhost:8000/Zap-Scripting-Cheap-Autorize" />
+<meta property="og:url" content="http://localhost:8000/Zap-Scripting-Cheap-Autorize" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/zap-scripting/zap-banner.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2023-04-26T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/zap-scripting/zap-banner.png" />
+<meta property="twitter:title" content="ZAP Scripting - Cheap Autorize" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2023-04-26T00:00:00-05:00","datePublished":"2023-04-26T00:00:00-05:00","description":"Introduction","headline":"ZAP Scripting - Cheap Autorize","image":"http://localhost:8000/assets/images/zap-scripting/zap-banner.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Zap-Scripting-Cheap-Autorize"},"url":"http://localhost:8000/Zap-Scripting-Cheap-Autorize"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/zap-scripting/zap-banner.png/../banner.png>
+  
+  <h2>ZAP Scripting - Cheap Autorize</h2>
+  <time datetime="2023-04-26T00:00:00-05:00" class="by-line">26 Apr 2023</time>
+  <h1 id="introduction">Introduction</h1>
+
+<p>The other day while I was testing a web app I thought that it would be nice to be able to automate some tests, then I remembered that you can write scripts in ZAP, I gave a quick look to it and it looked far easier than writing a plugin for burp (well you can ease that by asking chatgpt to write one for you, but let’s leave that aside), so I decided to try to learn how to make scripts for ZAP and write about it in my blog so I have a place to check if I forget how I did certain things. The idea that I had could’ve been solved by using burp extension Autorize (well not quite, but we will get to that later), so let’s try to write a cheap version of it for ZAP.</p>
+
+<h1 id="coding">Coding</h1>
+
+<p>Let’s start by choosing a language, ZAP allows you to write scripts in 3 languages, Graal.js (javascript), Python and Ruby, for some reason when you have a script written in Python that will apply to a lot of requests, such a proxy, HTTP Sender or Passive Rules, the CPU usage skyrockets, it might be okay if you are just manually navigating through a page, but if you want to fuzz anything the usage is excessive, so to any script in those categories it’s better to stick to Graal.js, luckily javascript isn’t hard to understand and you can quickly rewrite Python scripts to Graal.js, at least the simple ones. Now that we have chosen a language let’s start by writing the pieces of code necessary to do what we want and put it together at the end. We will write a Proxy script (we could also use an HTTP Sender if we want it to apply to more requests besides the proxy), so let’s grab the Proxy default template.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nf">proxyRequest</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span> <span class="p">{</span>
+	<span class="c1">// Debugging can be done using println like this</span>
+	<span class="nf">print</span><span class="p">(</span><span class="dl">'</span><span class="s1">proxyRequest called for url=</span><span class="dl">'</span> <span class="o">+</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">toString</span><span class="p">())</span>
+	
+	<span class="k">return</span> <span class="kc">true</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">proxyResponse</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span> <span class="p">{</span>
+	<span class="c1">// Debugging can be done using println like this</span>
+	<span class="nf">print</span><span class="p">(</span><span class="dl">'</span><span class="s1">proxyResponse called for url=</span><span class="dl">'</span> <span class="o">+</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">toString</span><span class="p">())</span>
+	<span class="k">return</span> <span class="kc">true</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="making-an-extra-http-request">Making an Extra HTTP Request</h2>
+
+<p>We don’t want to modify the requests that go through our browser, but to send an extra request with a modified value, so first let’s duplicate the request so we can mess with the cloned request. To send a separate HTTP Request we need to “import” the package “org.parosproxy.paros.network.HttpSender”, to do so we use <code class="language-plaintext highlighter-rouge">Java.type(&lt;package&gt;)</code>, then we can clone the original request and send the duplicate request. It’s also important to know that the scripts get disabled when they throw an error, so something like a timeout on a request would disable the script, to avoid that we have to put the requesting line inside a try catch block:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">//Importing the package</span>
+<span class="kd">var</span> <span class="nx">HttpSender</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.network.HttpSender</span><span class="dl">"</span><span class="p">)</span>
+
+<span class="c1">//Cloning the request</span>
+<span class="kd">var</span> <span class="nx">newreq</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+<span class="c1">//Creating the HttpSender constructor</span>
+<span class="kd">var</span> <span class="nx">sender</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">HttpSender</span><span class="p">(</span><span class="nx">HttpSender</span><span class="p">.</span><span class="nx">MANUAL_REQUEST_INITIATOR</span><span class="p">)</span>
+<span class="c1">//Sending the Request</span>
+<span class="k">try</span><span class="p">{</span>
+	<span class="nx">sender</span><span class="p">.</span><span class="nf">sendAndReceive</span><span class="p">(</span><span class="nx">newreq</span><span class="p">)</span>
+<span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="nf">print </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="loging-the-request-on-the-history-tab">Loging the Request on the History Tab</h2>
+
+<p>We were able to send an extra request, but where did it go? Well we have to manually add the request to the history of ZAP (this allows us to send as many requests as we want without filling our history with garbage), the code for logging our request would be:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">//Importing packages</span>
+<span class="kd">var</span> <span class="nx">Model</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.model.Model</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">HistoryReference</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.model.HistoryReference</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">Control</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.control.Control</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">ExtensionHistory</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.extension.history.ExtensionHistory</span><span class="dl">"</span><span class="p">)</span>
+
+<span class="c1">//Get our current session</span>
+<span class="nx">Msess</span> <span class="o">=</span> <span class="nx">Model</span><span class="p">.</span><span class="nf">getSingleton</span><span class="p">().</span><span class="nf">getSession</span><span class="p">()</span>
+<span class="c1">//Creating a constructor giving our current session as input, TYPE_ZAP_USER History Reference so the history shows it as a manual request, and the cloned HTTPMessage</span>
+<span class="kd">var</span> <span class="nx">href</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">HistoryReference</span><span class="p">(</span><span class="nx">Msess</span><span class="p">,</span> <span class="nx">HistoryReference</span><span class="p">.</span><span class="nx">TYPE_ZAP_USER</span><span class="p">,</span> <span class="nx">newreq</span><span class="p">)</span>
+<span class="c1">//Adding the request to the History by poiting the History Reference created</span>
+<span class="nx">Control</span><span class="p">.</span><span class="nf">getSingleton</span><span class="p">().</span><span class="nf">getExtensionLoader</span><span class="p">().</span><span class="nf">getExtension</span><span class="p">(</span><span class="nx">ExtensionHistory</span><span class="p">.</span><span class="nx">NAME</span><span class="p">).</span><span class="nf">addHistory</span><span class="p">(</span><span class="nx">href</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/zap-scripting/log-request.png" alt="" /></p>
+
+<h2 id="replacing-values-in-the-new-request">Replacing Values in the new Request</h2>
+
+<p>Now that we have covered the part of sending the requests let’s start by changing the cookies, Ids and whatever we need to a new one, we could just modify the cookies but there are certain session identifiers that don’t go as cookies (JWTs for example), so let’s modify any value inside the headers:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">lookfor</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">&lt;value that will be replaced&gt;</span><span class="dl">"</span>
+<span class="kd">var</span> <span class="nx">replacewith</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">&lt;new value to set&gt;</span><span class="dl">"</span>
+
+<span class="c1">//Set variable containing all the headers</span>
+<span class="kd">var</span> <span class="nx">msgHeaders</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getHeaders</span><span class="p">()</span>
+
+<span class="c1">//It shouldn't be possible but first we evaluate if the request contains any header</span>
+<span class="k">if </span><span class="p">(</span><span class="nx">msgHeaders</span><span class="p">){</span>
+	<span class="c1">//Create a variable that will change if there is any header changed</span>
+	<span class="kd">var</span> <span class="nx">HeadChanged</span> <span class="o">=</span> <span class="mi">0</span>
+	<span class="c1">//cloning the request so we don't modify the headers on the original request</span>
+	<span class="kd">var</span> <span class="nx">newreq</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+	<span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getHeaders</span><span class="p">().</span><span class="nf">forEach</span><span class="p">((</span><span class="nx">Header</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+		<span class="c1">//looking for the value to be changed</span>
+		<span class="k">if </span><span class="p">(</span><span class="nx">Header</span><span class="p">.</span><span class="nf">getValue</span><span class="p">().</span><span class="nf">search</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">){</span>
+			<span class="c1">//Setting the header with a new one where the value is replaced, notice we need two arguments, header name and its value</span>
+			<span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">setHeader</span><span class="p">(</span><span class="nx">Header</span><span class="p">.</span><span class="nf">getName</span><span class="p">(),</span><span class="nx">Header</span><span class="p">.</span><span class="nf">getValue</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">,</span><span class="nx">replacewith</span><span class="p">))</span>
+			<span class="nx">HeadChanged</span> <span class="o">+=</span> <span class="mi">1</span>
+		<span class="p">}</span>
+	<span class="p">})</span>
+	<span class="c1">//Checking if any header was changed</span>
+	<span class="k">if </span><span class="p">(</span><span class="nx">HeadChanged</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">){</span>
+		<span class="nf">print </span><span class="p">(</span><span class="dl">"</span><span class="s2">Replacing Headers</span><span class="dl">"</span><span class="p">)</span>
+		<span class="c1">//Here goes the code that will send and log the new request</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Other values that would interest us to change would be the path (in case the site uses something like /api/&lt;userid&gt;/action), the query (?user=&lt;userid&gt;), and the body in case of POST/PUT requests, all of those changes would be pretty similar to the last one so there is no need to show how to it in a separate section.</p>
+
+<h2 id="flagging-suspicious-responses">Flagging Suspicious Responses</h2>
+
+<p>The final feature we want is to flag any result that might be a possible positive, to do so we can use the build in alerts that ZAP has to set an alert on any request that we think it might be a positive IDOR, first we have to create a Alert variable with the information that will be shown on the Alerts tab, then we can raise the alert with the same History reference we used before. On this example we will flag any request that gets the same status code as the original request, this is by no means a good way to test for positve IDORs, but let’s just do that to avoid overcomplicating this example script.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">//Importing packages</span>
+<span class="kd">var</span> <span class="nx">ExtensionAlert</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.zaproxy.zap.extension.alert.ExtensionAlert</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">Alert</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.core.scanner.Alert</span><span class="dl">"</span><span class="p">)</span>
+
+<span class="c1">//Comparing cloned Request Status code with original's one</span>
+<span class="k">if </span><span class="p">(</span><span class="nx">newreq</span><span class="p">.</span><span class="nf">getResponseHeader</span><span class="p">().</span><span class="nf">getStatusCode</span><span class="p">()</span> <span class="o">==</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getResponseHeader</span><span class="p">().</span><span class="nf">getStatusCode</span><span class="p">()){</span>
+	<span class="c1">//Defining alert, AFAIK scripts do not have a Plugin Id so we set a random one</span>
+	<span class="kd">var</span> <span class="nx">alert</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Alert</span><span class="p">(</span><span class="mi">5000</span><span class="p">,</span> <span class="nx">Alert</span><span class="p">.</span><span class="nx">RISK_HIGH</span><span class="p">,</span> <span class="nx">Alert</span><span class="p">.</span><span class="nx">CONFIDENCE_MEDIUM</span><span class="p">,</span> <span class="dl">"</span><span class="s2">Insecure Direct Object Reference</span><span class="dl">"</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setDescription</span><span class="p">(</span><span class="dl">"</span><span class="s2">It is possible to access to information belonging to another user without being authenticated as that user.</span><span class="dl">"</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setSolution</span><span class="p">(</span><span class="dl">"</span><span class="s2">The server has to validate that the data being accessed belongs to the current user that is logged on the site, if it isn't it should deny the asccess.</span><span class="dl">"</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setCweId</span><span class="p">(</span><span class="mi">639</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setWascId</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setMessage</span><span class="p">(</span><span class="nx">newreq</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setUri</span><span class="p">(</span><span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">toString</span><span class="p">())</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setReference</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html</span><span class="dl">"</span><span class="p">)</span>
+	<span class="nx">control</span><span class="p">.</span><span class="nf">getExtensionLoader</span><span class="p">().</span><span class="nf">getExtension</span><span class="p">(</span><span class="nx">ExtensionAlert</span><span class="p">.</span><span class="nx">NAME</span><span class="p">).</span><span class="nf">alertFound</span><span class="p">(</span><span class="nx">alert</span><span class="p">,</span> <span class="nx">href</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+<p><img src="/assets/images/zap-scripting/flag-idor.png" alt="" /></p>
+
+<h2 id="putting-all-together">Putting All Together</h2>
+
+<p>Now that we have all the pieces ready we only have to put everything together:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">//Importing the packages</span>
+<span class="kd">var</span> <span class="nx">HttpSender</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.network.HttpSender</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">Model</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.model.Model</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">HistoryReference</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.model.HistoryReference</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">Control</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.control.Control</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">ExtensionHistory</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.extension.history.ExtensionHistory</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">ExtensionAlert</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.zaproxy.zap.extension.alert.ExtensionAlert</span><span class="dl">"</span><span class="p">)</span>
+<span class="kd">var</span> <span class="nx">Alert</span> <span class="o">=</span> <span class="nx">Java</span><span class="p">.</span><span class="nf">type</span><span class="p">(</span><span class="dl">"</span><span class="s2">org.parosproxy.paros.core.scanner.Alert</span><span class="dl">"</span><span class="p">)</span>
+
+<span class="kd">var</span> <span class="nx">lookfor</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">&lt;value that will be replaced&gt;</span><span class="dl">"</span>
+<span class="kd">var</span> <span class="nx">replacewith</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">&lt;new value to set&gt;</span><span class="dl">"</span>
+
+<span class="kd">function</span> <span class="nf">proxyRequest</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span> <span class="p">{</span>
+	<span class="c1">// Debugging can be done using println like this</span>
+	<span class="nf">print</span><span class="p">(</span><span class="dl">'</span><span class="s1">proxyRequest called for url=</span><span class="dl">'</span> <span class="o">+</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">toString</span><span class="p">())</span>
+	
+	<span class="k">return</span> <span class="kc">true</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">proxyResponse</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span> <span class="p">{</span>
+
+	<span class="c1">//Set variable containing all the headers</span>
+	<span class="kd">var</span> <span class="nx">msgHeaders</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getHeaders</span><span class="p">()</span>
+	<span class="kd">var</span> <span class="nx">msgPath</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">getPath</span><span class="p">()</span>
+	<span class="kd">var</span> <span class="nx">msgQuery</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">getQuery</span><span class="p">()</span>
+	<span class="kd">var</span> <span class="nx">msgMethod</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getMethod</span><span class="p">()</span>
+
+	<span class="c1">//It shouldn't be possible but first we evaluate if the request contains any header</span>
+	<span class="k">if </span><span class="p">(</span><span class="nx">msgHeaders</span><span class="p">){</span>
+		<span class="c1">//Create a variable that will change if there is any header changed</span>
+		<span class="kd">var</span> <span class="nx">HeadChanged</span> <span class="o">=</span> <span class="mi">0</span>
+		<span class="c1">//cloning the request so we don't modify the headers on the original request</span>
+		<span class="kd">var</span> <span class="nx">newreq</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+		<span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getHeaders</span><span class="p">().</span><span class="nf">forEach</span><span class="p">((</span><span class="nx">Header</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+			<span class="c1">//looking for the value to be changed</span>
+			<span class="k">if </span><span class="p">(</span><span class="nx">Header</span><span class="p">.</span><span class="nf">getValue</span><span class="p">().</span><span class="nf">search</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">){</span>
+				<span class="c1">//Setting the header with a new one where the value is replaced, notice we need two arguments, header name and its value</span>
+				<span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">setHeader</span><span class="p">(</span><span class="nx">Header</span><span class="p">.</span><span class="nf">getName</span><span class="p">(),</span><span class="nx">Header</span><span class="p">.</span><span class="nf">getValue</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">,</span><span class="nx">replacewith</span><span class="p">))</span>
+				<span class="nx">HeadChanged</span> <span class="o">+=</span> <span class="mi">1</span>
+			<span class="p">}</span>
+		<span class="p">})</span>
+		<span class="c1">//Checking if any header was changed</span>
+		<span class="k">if </span><span class="p">(</span><span class="nx">HeadChanged</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">){</span>
+			<span class="nf">print </span><span class="p">(</span><span class="dl">"</span><span class="s2">Replacing Headers</span><span class="dl">"</span><span class="p">)</span>
+			<span class="c1">//Send request</span>
+			<span class="nf">repeatRequest</span><span class="p">(</span><span class="nx">msg</span><span class="p">,</span><span class="nx">newreq</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="c1">//Replacing in Path</span>
+	<span class="k">if </span><span class="p">(</span><span class="nx">msgPath</span><span class="p">){</span>
+		<span class="k">if </span><span class="p">(</span><span class="nx">msgPath</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">){</span>
+			<span class="nf">print </span><span class="p">(</span><span class="dl">"</span><span class="s2">Replacing in Path</span><span class="dl">"</span><span class="p">)</span>
+			<span class="c1">//Cloning request</span>
+			<span class="kd">var</span> <span class="nx">newreq</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+			<span class="kd">var</span> <span class="nx">newpath</span> <span class="o">=</span> <span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">getPath</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">,</span><span class="nx">replacewith</span><span class="p">)</span>
+			<span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">setPath</span><span class="p">(</span><span class="nx">newpath</span><span class="p">)</span>
+			<span class="c1">//Send request</span>
+			<span class="nf">repeatRequest</span><span class="p">(</span><span class="nx">msg</span><span class="p">,</span><span class="nx">newreq</span><span class="p">)</span>
+		<span class="p">}</span>	
+     <span class="p">}</span>
+
+	<span class="c1">//Replacing Query</span>
+	<span class="k">if </span><span class="p">(</span><span class="nx">msgQuery</span><span class="p">){</span>
+		<span class="k">if </span><span class="p">(</span><span class="nx">msgQuery</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">){</span>
+			<span class="nf">print </span><span class="p">(</span><span class="dl">"</span><span class="s2">Replacing Query</span><span class="dl">"</span><span class="p">)</span>
+			<span class="c1">//Cloning Request</span>
+			<span class="kd">var</span> <span class="nx">newreq</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+			<span class="kd">var</span> <span class="nx">newquery</span> <span class="o">=</span> <span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">getQuery</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">,</span><span class="nx">replacewith</span><span class="p">)</span>
+			<span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">setQuery</span><span class="p">(</span><span class="nx">newquery</span><span class="p">)</span>
+			<span class="c1">//Send request</span>
+			<span class="nf">repeatRequest</span><span class="p">(</span><span class="nx">msg</span><span class="p">,</span><span class="nx">newreq</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="c1">//Replacing Body</span>
+	<span class="k">if </span><span class="p">(</span><span class="nx">msgMethod</span> <span class="o">==</span> <span class="dl">"</span><span class="s2">POST</span><span class="dl">"</span> <span class="o">||</span> <span class="nx">msgMethod</span> <span class="o">==</span> <span class="dl">"</span><span class="s2">PUT</span><span class="dl">"</span><span class="p">){</span>
+		<span class="k">if </span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestBody</span><span class="p">()){</span>
+			<span class="k">if </span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="nf">getRequestBody</span><span class="p">().</span><span class="nf">toString</span><span class="p">().</span><span class="nf">search</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">){</span>
+				<span class="nf">print </span><span class="p">(</span><span class="dl">"</span><span class="s2">Replacing Body</span><span class="dl">"</span><span class="p">)</span>
+				<span class="c1">//Cloning Request</span>
+				<span class="kd">var</span> <span class="nx">newreq</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+				<span class="kd">var</span> <span class="nx">newbody</span> <span class="o">=</span> <span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestBody</span><span class="p">().</span><span class="nf">toString</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="nx">lookfor</span><span class="p">,</span><span class="nx">replacewith</span><span class="p">)</span>
+				<span class="nx">newreq</span><span class="p">.</span><span class="nf">setRequestBody</span><span class="p">(</span><span class="nx">newbody</span><span class="p">)</span>
+				<span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">setContentLength</span><span class="p">(</span><span class="nx">newbody</span><span class="p">.</span><span class="nf">length</span><span class="p">())</span>
+				<span class="c1">//Send request</span>
+				<span class="nf">repeatRequest</span><span class="p">(</span><span class="nx">msg</span><span class="p">,</span><span class="nx">newreq</span><span class="p">)</span>	
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="kc">true</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">repeatRequest</span><span class="p">(</span><span class="nx">ori</span><span class="p">,</span><span class="nx">newreq</span><span class="p">){</span>
+	<span class="c1">//Creating the HttpSender constructor</span>
+	<span class="kd">var</span> <span class="nx">sender</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">HttpSender</span><span class="p">(</span><span class="nx">HttpSender</span><span class="p">.</span><span class="nx">MANUAL_REQUEST_INITIATOR</span><span class="p">)</span>
+
+	<span class="c1">//Defining alert, AFAIK scripts do not have a Plugin Id so we set a random one</span>
+	<span class="kd">var</span> <span class="nx">alert</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Alert</span><span class="p">(</span><span class="mi">5000</span><span class="p">,</span> <span class="nx">Alert</span><span class="p">.</span><span class="nx">RISK_HIGH</span><span class="p">,</span> <span class="nx">Alert</span><span class="p">.</span><span class="nx">CONFIDENCE_MEDIUM</span><span class="p">,</span> <span class="dl">"</span><span class="s2">Insecure Direct Object Reference</span><span class="dl">"</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setDescription</span><span class="p">(</span><span class="dl">"</span><span class="s2">It is possible to access to information belonging to another user without being authenticated as that user.</span><span class="dl">"</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setSolution</span><span class="p">(</span><span class="dl">"</span><span class="s2">The server has to validate that the data being accessed belongs to the current user that is logged on the site, if it isn't it should deny the asccess.</span><span class="dl">"</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setCweId</span><span class="p">(</span><span class="mi">639</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setWascId</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setMessage</span><span class="p">(</span><span class="nx">newreq</span><span class="p">)</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setUri</span><span class="p">(</span><span class="nx">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">toString</span><span class="p">())</span>
+	<span class="nx">alert</span><span class="p">.</span><span class="nf">setReference</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html</span><span class="dl">"</span><span class="p">)</span>
+
+	<span class="c1">//Sending the Request</span>
+	<span class="k">try</span><span class="p">{</span>
+		<span class="nx">sender</span><span class="p">.</span><span class="nf">sendAndReceive</span><span class="p">(</span><span class="nx">newreq</span><span class="p">)</span>
+		<span class="c1">//Get our current session</span>
+		<span class="nx">Msess</span> <span class="o">=</span> <span class="nx">Model</span><span class="p">.</span><span class="nf">getSingleton</span><span class="p">().</span><span class="nf">getSession</span><span class="p">()</span>
+		<span class="c1">//Creating a constructor giving our current session as input, TYPE_ZAP_USER History Reference so the history shows it as a manual request, and the cloned HTTPMessage</span>
+		<span class="kd">var</span> <span class="nx">href</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">HistoryReference</span><span class="p">(</span><span class="nx">Msess</span><span class="p">,</span> <span class="nx">HistoryReference</span><span class="p">.</span><span class="nx">TYPE_ZAP_USER</span><span class="p">,</span> <span class="nx">newreq</span><span class="p">)</span>
+		<span class="c1">//Adding the request to the History by poiting the History Reference created</span>
+		<span class="nx">Control</span><span class="p">.</span><span class="nf">getSingleton</span><span class="p">().</span><span class="nf">getExtensionLoader</span><span class="p">().</span><span class="nf">getExtension</span><span class="p">(</span><span class="nx">ExtensionHistory</span><span class="p">.</span><span class="nx">NAME</span><span class="p">).</span><span class="nf">addHistory</span><span class="p">(</span><span class="nx">href</span><span class="p">)</span>
+		<span class="k">if </span><span class="p">(</span><span class="nx">newreq</span><span class="p">.</span><span class="nf">getResponseHeader</span><span class="p">().</span><span class="nf">getStatusCode</span><span class="p">()</span> <span class="o">==</span> <span class="nx">ori</span><span class="p">.</span><span class="nf">getResponseHeader</span><span class="p">().</span><span class="nf">getStatusCode</span><span class="p">()){</span>
+			<span class="nx">control</span><span class="p">.</span><span class="nf">getExtensionLoader</span><span class="p">().</span><span class="nf">getExtension</span><span class="p">(</span><span class="nx">ExtensionAlert</span><span class="p">.</span><span class="nx">NAME</span><span class="p">).</span><span class="nf">alertFound</span><span class="p">(</span><span class="nx">alert</span><span class="p">,</span> <span class="nx">href</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+	<span class="p">{</span>
+		<span class="nf">print </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Now that we have our script all we have to do is enable it.</p>
+
+<p><img src="/assets/images/zap-scripting/enable-script.png" alt="" /></p>
+
+<p>On this case we tested changing the JWT of two users on  the Owasp Juice Shop and we can see that the requests are being repeated and some requests are being flagged while others aren’t.</p>
+
+<p><img src="/assets/images/zap-scripting/multiple-requests.png" alt="" /></p>
+
+<h2 id="issues">Issues</h2>
+
+<ul>
+  <li>As mentioned earlier the filter for flagging IDORs is not good at all, every site has its own way on handling errors, so it would be a good idea to identify first how a site reacts when we are trying to access data of another user so we can set a better filter for setting the alerts.</li>
+  <li>We are sending the same request too many times, as you can see the script resends the request for any change it has made, I like it more that way so I know exactly what change was successful, on the other hand you could only send one request containing all the changes and then narrow down which change triggered the vulnerability if you find a successful request, we could also add some extra conditions so it won’t search the value to replace in every place, also we could separate what value changes according to the place where we are making the changes.</li>
+  <li>The original request gets blocked until the duplicated ones are finished, one of the purposes of this kind of scripts if to modify values of the requests on the fly so nothing can be sent back to the browser until the code is finished, sending the same request a couple of times will delay the original request, so browsing with the script enabled will slow the webpage. It would be nice having something like Passive Rules for this, since those rules run in separate threads so it wouldn’t slow the webpage, but passive rules aren’t meant to send requests, so we have to stick to this way.</li>
+  <li>There is no separate section for configuring the script, I don’t really mind but sometimes it can be nice to have a small screen where we can configure everything on some small fields and checkboxes, doing that would require making an add-on (which technically is also a script), if I manage to learn how to do it I’ll talk about it in a future entry on the blog.</li>
+</ul>
+
+<h1 id="post-autorize">Post Autorize</h1>
+
+<p>Great we have our script to automate our tests, now what? Well the script is very useful to run while we are exploring a web page, but what if we want to perform the tests after we have explored the site? We would need to enable the script and explore the site all over again, but since we have already explored the site we can automate that task too, so let’s rewrite the script so it runs as a stand alone that will resend all the requests logged that match with the value we are looking for changed, since this script will only run once we don’t need to care about the language, so let’s use python to see the differences with js, so let’s grab the script “Loop through history table.py” and write on it.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="n">org.parosproxy.paros.control</span> <span class="kn">import</span> <span class="n">Control</span>
+<span class="kn">from</span> <span class="n">org.parosproxy.paros.extension.history</span> <span class="kn">import</span> <span class="n">ExtensionHistory</span>
+<span class="kn">from</span> <span class="n">org.parosproxy.paros.network</span> <span class="kn">import</span> <span class="n">HttpSender</span>
+<span class="kn">from</span> <span class="n">org.parosproxy.paros.model</span> <span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span> <span class="n">org.parosproxy.paros.model</span> <span class="kn">import</span> <span class="n">HistoryReference</span>
+<span class="kn">from</span> <span class="n">org.zaproxy.zap.extension.alert</span> <span class="kn">import</span> <span class="n">ExtensionAlert</span>
+<span class="kn">from</span> <span class="n">org.parosproxy.paros.core.scanner</span> <span class="kn">import</span> <span class="n">Alert</span>
+
+<span class="n">lookfor</span> <span class="o">=</span> <span class="sh">"</span><span class="s">&lt;value that will be replaced&gt;</span><span class="sh">"</span>
+<span class="n">replacewith</span> <span class="o">=</span> <span class="sh">"</span><span class="s">&lt;new value to set&gt;</span><span class="sh">"</span>
+
+<span class="k">def</span> <span class="nf">repeatRequest</span><span class="p">(</span><span class="n">ori</span><span class="p">,</span><span class="n">newreq</span><span class="p">):</span>
+  <span class="c1">#Creating the HttpSender constructor
+</span>  <span class="n">sender</span> <span class="o">=</span> <span class="nc">HttpSender</span><span class="p">(</span><span class="n">HttpSender</span><span class="p">.</span><span class="n">MANUAL_REQUEST_INITIATOR</span><span class="p">)</span>
+
+  <span class="c1">#Defining alert, AFAIK scripts do not have a Plugin Id so we set a random one
+</span>  <span class="n">alert</span> <span class="o">=</span> <span class="nc">Alert</span><span class="p">(</span><span class="mi">5000</span><span class="p">,</span> <span class="n">Alert</span><span class="p">.</span><span class="n">RISK_HIGH</span><span class="p">,</span> <span class="n">Alert</span><span class="p">.</span><span class="n">CONFIDENCE_MEDIUM</span><span class="p">,</span> <span class="sh">"</span><span class="s">Insecure Direct Object Reference</span><span class="sh">"</span><span class="p">)</span>
+  <span class="n">alert</span><span class="p">.</span><span class="nf">setDescription</span><span class="p">(</span><span class="sh">"</span><span class="s">It is possible to access to information belonging to another user without being authenticated as that user.</span><span class="sh">"</span><span class="p">)</span>
+  <span class="n">alert</span><span class="p">.</span><span class="nf">setSolution</span><span class="p">(</span><span class="sh">"</span><span class="s">The server has to validate that the data being accessed belongs to the current user that is logged on the site, if it isn</span><span class="sh">'</span><span class="s">t it should deny the asccess.</span><span class="sh">"</span><span class="p">)</span>
+  <span class="n">alert</span><span class="p">.</span><span class="nf">setCweId</span><span class="p">(</span><span class="mi">639</span><span class="p">)</span>
+  <span class="n">alert</span><span class="p">.</span><span class="nf">setWascId</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+  <span class="n">alert</span><span class="p">.</span><span class="nf">setMessage</span><span class="p">(</span><span class="n">newreq</span><span class="p">)</span>
+  <span class="n">alert</span><span class="p">.</span><span class="nf">setUri</span><span class="p">(</span><span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">toString</span><span class="p">())</span>
+  <span class="n">alert</span><span class="p">.</span><span class="nf">setReference</span><span class="p">(</span><span class="sh">"</span><span class="s">https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html</span><span class="sh">"</span><span class="p">)</span>
+
+  <span class="c1">#Sending the Request
+</span>  <span class="k">try</span><span class="p">:</span>
+    <span class="n">sender</span><span class="p">.</span><span class="nf">sendAndReceive</span><span class="p">(</span><span class="n">newreq</span><span class="p">)</span>
+    <span class="c1">#Get our current session
+</span>    <span class="n">Msess</span> <span class="o">=</span> <span class="n">Model</span><span class="p">.</span><span class="nf">getSingleton</span><span class="p">().</span><span class="nf">getSession</span><span class="p">()</span>
+    <span class="c1">#Creating a constructor giving our current session as input, TYPE_ZAP_USER History Reference so the history shows it as a manual request, and the cloned HTTPMessage
+</span>    <span class="n">href</span> <span class="o">=</span> <span class="nc">HistoryReference</span><span class="p">(</span><span class="n">Msess</span><span class="p">,</span> <span class="n">HistoryReference</span><span class="p">.</span><span class="n">TYPE_ZAP_USER</span><span class="p">,</span> <span class="n">newreq</span><span class="p">)</span>
+    <span class="c1">#Adding the request to the History by poiting the History Reference created
+</span>    <span class="n">Control</span><span class="p">.</span><span class="nf">getSingleton</span><span class="p">().</span><span class="nf">getExtensionLoader</span><span class="p">().</span><span class="nf">getExtension</span><span class="p">(</span><span class="n">ExtensionHistory</span><span class="p">.</span><span class="n">NAME</span><span class="p">).</span><span class="nf">addHistory</span><span class="p">(</span><span class="n">href</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">newreq</span><span class="p">.</span><span class="nf">getResponseHeader</span><span class="p">().</span><span class="nf">getStatusCode</span><span class="p">()</span> <span class="o">==</span> <span class="n">ori</span><span class="p">.</span><span class="nf">getResponseHeader</span><span class="p">().</span><span class="nf">getStatusCode</span><span class="p">():</span>
+      <span class="n">control</span><span class="p">.</span><span class="nf">getExtensionLoader</span><span class="p">().</span><span class="nf">getExtension</span><span class="p">(</span><span class="n">ExtensionAlert</span><span class="p">.</span><span class="n">NAME</span><span class="p">).</span><span class="nf">alertFound</span><span class="p">(</span><span class="n">alert</span><span class="p">,</span> <span class="n">href</span><span class="p">)</span>
+  <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+      <span class="nf">print </span><span class="p">(</span><span class="nb">Exception</span><span class="p">)</span>
+
+<span class="n">extHist</span> <span class="o">=</span> <span class="n">Control</span><span class="p">.</span><span class="nf">getSingleton</span><span class="p">().</span><span class="nf">getExtensionLoader</span><span class="p">().</span><span class="nf">getExtension</span><span class="p">(</span><span class="n">ExtensionHistory</span><span class="p">.</span><span class="n">NAME</span><span class="p">)</span> 
+<span class="nf">if </span><span class="p">(</span><span class="n">extHist</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">):</span>
+  <span class="n">i</span><span class="o">=</span><span class="mi">1</span>
+  <span class="c1"># Loop through the history table, printing out the history id and the URL
+</span>  <span class="n">hr</span> <span class="o">=</span> <span class="n">extHist</span><span class="p">.</span><span class="nf">getHistoryReference</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+  <span class="nf">while </span><span class="p">(</span><span class="n">hr</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">):</span>
+    <span class="c1">#url = hr.getHttpMessage().getRequestHeader().getURI().toString()
+</span>    <span class="c1">#print('Got History record id ' + str(hr.getHistoryId()) + ' URL=' + url) 
+</span>
+    <span class="c1">#Only evaluate requests generated by the browser
+</span>    <span class="k">if</span> <span class="n">hr</span><span class="p">.</span><span class="nf">getHistoryType</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="n">hr</span><span class="p">.</span><span class="nf">getHttpMessage</span><span class="p">()</span>
+      <span class="c1">#Set variable containing all the headers
+</span>      <span class="n">msgHeaders</span> <span class="o">=</span> <span class="n">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getHeaders</span><span class="p">()</span>
+      <span class="n">msgPath</span> <span class="o">=</span> <span class="n">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">getPath</span><span class="p">()</span>
+      <span class="n">msgQuery</span> <span class="o">=</span> <span class="n">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">getQuery</span><span class="p">()</span>
+      <span class="n">msgMethod</span> <span class="o">=</span> <span class="n">msg</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getMethod</span><span class="p">()</span>
+
+      <span class="c1">#It shouldn't be possible but first we evaluate if the request contains any header
+</span>      <span class="k">if</span> <span class="n">msgHeaders</span><span class="p">:</span>
+        <span class="c1">#Create a variable that will change if there is any header changed
+</span>        <span class="n">HeadChanged</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1">#cloning the request so we don't modify the headers on the original request
+</span>        <span class="n">newreq</span> <span class="o">=</span> <span class="n">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">Header</span> <span class="ow">in</span> <span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getHeaders</span><span class="p">():</span>
+          <span class="c1">#looking for the value to be changed
+</span>          <span class="k">if</span> <span class="n">Header</span><span class="p">.</span><span class="nf">getValue</span><span class="p">().</span><span class="nf">find</span><span class="p">(</span><span class="n">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="c1">#Setting the header with a new one where the value is replaced, notice we need two arguments, header name and its value
+</span>            <span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">setHeader</span><span class="p">(</span><span class="n">Header</span><span class="p">.</span><span class="nf">getName</span><span class="p">(),</span><span class="n">Header</span><span class="p">.</span><span class="nf">getValue</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="n">lookfor</span><span class="p">,</span><span class="n">replacewith</span><span class="p">))</span>
+            <span class="n">HeadChanged</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1">#Checking if any header was changed
+</span>        <span class="k">if</span> <span class="n">HeadChanged</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+          <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Replacing Headers</span><span class="sh">"</span><span class="p">)</span>
+          <span class="c1">#Send request
+</span>          <span class="nf">repeatRequest</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">newreq</span><span class="p">)</span>
+
+      <span class="c1">#Replacing in Path
+</span>      <span class="k">if</span> <span class="n">msgPath</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">msgPath</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="n">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+          <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Replacing in Path</span><span class="sh">"</span><span class="p">)</span>
+          <span class="c1">#Cloning request
+</span>          <span class="n">newreq</span> <span class="o">=</span> <span class="n">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+          <span class="n">newpath</span> <span class="o">=</span> <span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">getPath</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="n">lookfor</span><span class="p">,</span><span class="n">replacewith</span><span class="p">)</span>
+          <span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">setPath</span><span class="p">(</span><span class="n">newpath</span><span class="p">)</span>
+          <span class="c1">#Send request
+</span>          <span class="nf">repeatRequest</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">newreq</span><span class="p">)</span>
+
+      <span class="c1">#Replacing Query
+</span>      <span class="k">if</span> <span class="n">msgQuery</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">msgQuery</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="n">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+          <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Replacing Query</span><span class="sh">"</span><span class="p">)</span>
+          <span class="c1">#Cloning Request
+</span>          <span class="n">newreq</span> <span class="o">=</span> <span class="n">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+          <span class="n">newquery</span> <span class="o">=</span> <span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">getQuery</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="n">lookfor</span><span class="p">,</span><span class="n">replacewith</span><span class="p">)</span>
+          <span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">getURI</span><span class="p">().</span><span class="nf">setQuery</span><span class="p">(</span><span class="n">newquery</span><span class="p">)</span>
+          <span class="c1">#Send request
+</span>          <span class="nf">repeatRequest</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">newreq</span><span class="p">)</span>
+
+      <span class="c1">#Replacing Body
+</span>      <span class="k">if</span> <span class="n">msgMethod</span> <span class="o">==</span> <span class="sh">"</span><span class="s">POST</span><span class="sh">"</span> <span class="ow">or</span> <span class="n">msgMethod</span> <span class="o">==</span> <span class="sh">"</span><span class="s">PUT</span><span class="sh">"</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">msg</span><span class="p">.</span><span class="nf">getRequestBody</span><span class="p">():</span>
+          <span class="k">if</span> <span class="n">msg</span><span class="p">.</span><span class="nf">getRequestBody</span><span class="p">().</span><span class="nf">toString</span><span class="p">().</span><span class="nf">find</span><span class="p">(</span><span class="n">lookfor</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="nf">print </span><span class="p">(</span><span class="sh">"</span><span class="s">Replacing Body</span><span class="sh">"</span><span class="p">)</span>
+            <span class="c1">#Cloning Request
+</span>            <span class="n">newreq</span> <span class="o">=</span> <span class="n">msg</span><span class="p">.</span><span class="nf">cloneRequest</span><span class="p">()</span>
+            <span class="n">newbody</span> <span class="o">=</span> <span class="nf">str</span><span class="p">(</span><span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestBody</span><span class="p">()).</span><span class="nf">replace</span><span class="p">(</span><span class="n">lookfor</span><span class="p">,</span><span class="n">replacewith</span><span class="p">)</span>
+            <span class="n">newreq</span><span class="p">.</span><span class="nf">setRequestBody</span><span class="p">(</span><span class="n">newbody</span><span class="p">)</span>
+            <span class="n">newreq</span><span class="p">.</span><span class="nf">getRequestHeader</span><span class="p">().</span><span class="nf">setContentLength</span><span class="p">(</span><span class="nf">len</span><span class="p">(</span><span class="n">newbody</span><span class="p">))</span>
+            <span class="c1">#Send request
+</span>            <span class="nf">repeatRequest</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">newreq</span><span class="p">)</span>	
+
+    <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">hr</span> <span class="o">=</span> <span class="n">extHist</span><span class="p">.</span><span class="nf">getHistoryReference</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Testing again with the juice shop to send the requests without a JWT we see all the requests going and just some getting an alert.</p>
+
+<p><img src="/assets/images/zap-scripting/post-autorize.png" alt="" /></p>
+
+<p>If we go to the Alerts tab we see all the alerts on the section we created.</p>
+
+<p><img src="/assets/images/zap-scripting/post-alerts.png" alt="" /></p>
+
+<p>With that we have a script that can test all the past requests and help us to identify vulnerabilities, since we would run this script after we have explored the site it will be easier to craft a reliable filter so we have less false positives among the alerts, a feature that would be interesting would be that the requests to be resend were showed on another tab and we could select which requests we don’t want to send in case there is any sensitive action, I’ll probably try to do so in the future when I get familiar with writing add-ons.
+I’m leaving both scripts in my <a href="https://github.com/5ubterranean/Random-Scripts/tree/main/zap-scripts">github</a> in case you want them and the blog is leaving some weird format errors.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#zap"> ZAP</a> &nbsp;
+  
+  <a href="/tags.html#insecure-direct-object-reference"> Insecure Direct Object Reference</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

